@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'features/history/history_screen.dart';
 import 'features/portfolio/portfolio_screen.dart';
@@ -43,10 +43,7 @@ class _AppShellState extends State<AppShell> {
             selectedIcon: Icon(Icons.pie_chart),
             label: 'Portfolio',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.history),
-            label: 'History',
-          ),
+          NavigationDestination(icon: Icon(Icons.history), label: 'History'),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),
             selectedIcon: Icon(Icons.settings),

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Placeholder — built in Step 5 (ROADMAP.md).
 class PortfolioScreen extends StatelessWidget {

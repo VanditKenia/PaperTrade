@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Color tokens from UI_UX.md §2.
 abstract final class AppColors {
@@ -32,12 +32,14 @@ ThemeData buildDarkTheme() {
   return base.copyWith(
     // Typography scale from UI_UX.md §2; other styles keep Material defaults.
     textTheme: base.textTheme
-        .merge(const TextTheme(
-          displaySmall: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
-          titleLarge: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-          bodyLarge: TextStyle(fontSize: 16, fontWeight: FontWeight.w400),
-          labelMedium: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-        ))
+        .merge(
+          const TextTheme(
+            displaySmall: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+            titleLarge: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+            bodyLarge: TextStyle(fontSize: 16, fontWeight: FontWeight.w400),
+            labelMedium: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+          ),
+        )
         .apply(
           bodyColor: AppColors.textPrimary,
           displayColor: AppColors.textPrimary,

@@ -36,6 +36,7 @@ If code and docs disagree, ask before changing either.
 
 ## Conventions
 
+- Always import `package:material_ui/material_ui.dart`, never `package:flutter/material.dart` (deprecated since Flutter 3.47).
 - Files: `snake_case.dart`. Classes: `PascalCase`. Providers end with `Provider`.
 - One widget per file for screens and major widgets.
 - Riverpod: use `Notifier`/`AsyncNotifier` (not legacy `StateNotifier`).
