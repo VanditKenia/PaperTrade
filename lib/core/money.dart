@@ -16,3 +16,13 @@ String formatPercent(double value) {
   final sign = digits == '0.00' ? '' : (value > 0 ? '+' : '-');
   return '$sign$digits%';
 }
+
+/// Change vs a base price, e.g. "▲ +$1.25 (+0.66%)". Arrow and sign mean
+/// gains/losses are never shown by color alone.
+String formatChange(int changeCents, int baseCents) {
+  final arrow = changeCents > 0 ? '▲ ' : (changeCents < 0 ? '▼ ' : '');
+  final sign = changeCents > 0 ? '+' : (changeCents < 0 ? '-' : '');
+  final percent = baseCents > 0 ? changeCents / baseCents * 100 : 0.0;
+  return '$arrow$sign${formatCents(changeCents.abs())} '
+      '(${formatPercent(percent)})';
+}

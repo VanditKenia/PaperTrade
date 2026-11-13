@@ -149,6 +149,26 @@ void main() {
       });
     });
 
+    test('subscribes to the union of sources', () {
+      fakeAsync((time) {
+        service
+          ..setSymbols(['AAPL'])
+          ..start();
+        channels.single.open();
+        time.flushMicrotasks();
+        final sent = channels.single.sent..clear();
+
+        service.setSymbols(['AAPL', 'NVDA'], source: 'detail');
+        expect(sent, [
+          {'type': 'subscribe', 'symbol': 'NVDA'},
+        ]); // AAPL already subscribed by the watchlist
+
+        service.setSymbols(const [], source: 'detail');
+        expect(sent.last, {'type': 'unsubscribe', 'symbol': 'NVDA'});
+        expect(sent, hasLength(2)); // AAPL kept: the watchlist still wants it
+      });
+    });
+
     test('emits throttled snapshots of subscribed symbols only', () {
       fakeAsync((time) {
         final snapshots = <Map<String, int>>[];

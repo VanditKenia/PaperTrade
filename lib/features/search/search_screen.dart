@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../core/theme.dart';
 import '../../data/api_errors.dart';
 import '../../domain/models/stock.dart';
+import '../stock_detail/stock_detail_screen.dart';
 import '../watchlist/watchlist_provider.dart';
 import 'search_provider.dart';
 
@@ -67,6 +68,11 @@ class _ResultRow extends ConsumerWidget {
     final watchlist = ref.read(watchlistProvider.notifier);
 
     return ListTile(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => StockDetailScreen(stock: stock),
+        ),
+      ),
       title: Text(
         stock.symbol,
         style: const TextStyle(fontWeight: FontWeight.bold),

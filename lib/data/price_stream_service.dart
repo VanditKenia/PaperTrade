@@ -32,7 +32,8 @@ class PriceStreamService {
   static const throttleInterval = Duration(milliseconds: 500);
   static const maxSymbols = 50; // Finnhub free-tier limit
 
-  final _symbols = <String>{};
+  final _sources = <String, Set<String>>{};
+  final _symbols = <String>{}; // currently subscribed
   final _latest = <String, int>{};
   final _snapshots = StreamController<Map<String, int>>.broadcast();
 
@@ -66,9 +67,16 @@ class PriceStreamService {
     _snapshots.close();
   }
 
-  /// Subscribes to [symbols] and unsubscribes from everything else.
-  void setSymbols(Iterable<String> symbols) {
-    final next = symbols.take(maxSymbols).toSet();
+  /// Sets the symbols one [source] (watchlist, an open detail screen…) wants.
+  /// The socket subscribes to the union of all sources, so closing a detail
+  /// screen doesn't unsubscribe a symbol the watchlist still shows.
+  void setSymbols(Iterable<String> symbols, {String source = 'watchlist'}) {
+    _sources[source] = symbols.toSet();
+    final next = _sources.values
+        .expand((s) => s)
+        .toSet()
+        .take(maxSymbols)
+        .toSet();
     for (final s in _symbols.difference(next)) {
       _send('unsubscribe', s);
       _latest.remove(s);

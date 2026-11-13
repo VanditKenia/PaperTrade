@@ -5,6 +5,7 @@ import '../../../core/money.dart';
 import '../../../core/theme.dart';
 import '../../../data/api_errors.dart';
 import '../../../domain/models/stock.dart';
+import '../../stock_detail/stock_detail_screen.dart';
 import '../watchlist_provider.dart';
 
 /// One watchlist row: symbol and name on the left, price and day change on
@@ -28,6 +29,11 @@ class PriceTile extends ConsumerWidget {
 
     return ListTile(
       minTileHeight: 64,
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => StockDetailScreen(stock: stock),
+        ),
+      ),
       title: Text(
         stock.symbol,
         style: text.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
@@ -102,12 +108,6 @@ class _PriceState extends State<_Price> with SingleTickerProviderStateMixin {
     final price = widget.priceCents;
     final prevClose = widget.prevCloseCents;
     final change = price - prevClose;
-    // Arrow and sign as well as color, so gains/losses aren't color-only.
-    final (color, arrow, sign) = change > 0
-        ? (AppColors.gain, '▲ ', '+')
-        : change < 0
-        ? (AppColors.loss, '▼ ', '-')
-        : (AppColors.textSecondary, '', '');
 
     return AnimatedBuilder(
       animation: _flash,
@@ -134,11 +134,10 @@ class _PriceState extends State<_Price> with SingleTickerProviderStateMixin {
             ),
             if (prevClose > 0)
               Text(
-                '$arrow$sign${formatCents(change.abs())} '
-                '(${formatPercent(change / prevClose * 100)})',
+                formatChange(change, prevClose),
                 style: text.labelMedium
                     ?.merge(tabularFigures)
-                    .copyWith(color: color),
+                    .copyWith(color: changeColor(change)),
               ),
           ],
         ),

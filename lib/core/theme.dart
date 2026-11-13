@@ -81,3 +81,10 @@ ThemeData buildDarkTheme() {
 /// For every price: equal-width digits stop numbers "jiggling" as they
 /// update (UI_UX.md §2).
 const tabularFigures = TextStyle(fontFeatures: [FontFeature.tabularFigures()]);
+
+/// Green for up, red for down, grey for unchanged.
+Color changeColor(int changeCents) => changeCents > 0
+    ? AppColors.gain
+    : changeCents < 0
+    ? AppColors.loss
+    : AppColors.textSecondary;

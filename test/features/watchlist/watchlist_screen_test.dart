@@ -7,6 +7,7 @@ import 'package:http/testing.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:papertrade/data/finnhub_api.dart';
 import 'package:papertrade/domain/models/stock.dart';
+import 'package:papertrade/features/stock_detail/stock_detail_screen.dart';
 import 'package:papertrade/features/watchlist/watchlist_provider.dart';
 import 'package:papertrade/features/watchlist/watchlist_screen.dart';
 
@@ -93,5 +94,15 @@ void main() {
 
     await tester.pump(const Duration(milliseconds: 250));
     expect(tint(), isNull); // faded out after 300 ms
+  });
+
+  testWidgets('tapping a stock opens its detail screen', (tester) async {
+    await tester.pumpWidget(
+      app(const [Stock(symbol: 'AAPL', name: 'Apple Inc')]),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('AAPL'));
+    await tester.pumpAndSettle();
+    expect(find.byType(StockDetailScreen), findsOneWidget);
   });
 }
