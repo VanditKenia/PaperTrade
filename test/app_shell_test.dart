@@ -1,11 +1,19 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:papertrade/app.dart';
 import 'package:papertrade/app_shell.dart';
+import 'package:papertrade/features/watchlist/watchlist_provider.dart';
 
 void main() {
   testWidgets('tapping a tab switches the visible screen', (tester) async {
-    await tester.pumpWidget(const MaterialApp(home: AppShell()));
+    // Empty watchlist: the shell test shouldn't touch Hive or the network.
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [watchlistProvider.overrideWithBuild((_, _) => [])],
+        child: const MaterialApp(home: AppShell()),
+      ),
+    );
 
     int shownIndex() =>
         tester.widget<IndexedStack>(find.byType(IndexedStack)).index!;

@@ -77,3 +77,7 @@ ThemeData buildDarkTheme() {
     ),
   );
 }
+
+/// For every price: equal-width digits stop numbers "jiggling" as they
+/// update (UI_UX.md §2).
+const tabularFigures = TextStyle(fontFeatures: [FontFeature.tabularFigures()]);
