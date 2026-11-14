@@ -4,13 +4,21 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:papertrade/app.dart';
 import 'package:papertrade/app_shell.dart';
 import 'package:papertrade/features/watchlist/watchlist_provider.dart';
+import 'package:papertrade/data/portfolio_repository.dart';
+
+import 'fakes.dart';
 
 void main() {
   testWidgets('tapping a tab switches the visible screen', (tester) async {
     // Empty watchlist: the shell test shouldn't touch Hive or the network.
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [watchlistProvider.overrideWithBuild((_, _) => [])],
+        overrides: [
+          watchlistProvider.overrideWithBuild((_, _) => []),
+          portfolioRepositoryProvider.overrideWithValue(
+            FakePortfolioRepository(),
+          ),
+        ],
         child: const MaterialApp(home: AppShell()),
       ),
     );

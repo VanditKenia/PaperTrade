@@ -37,14 +37,10 @@ class WatchlistNotifier extends Notifier<List<Stock>> {
 }
 
 /// Latest live price (cents) per symbol, updated at most every 500 ms.
+/// Depends only on the socket, never on the portfolio: trading code reads
+/// prices, so anything here that watched the portfolio would be a cycle.
 final livePricesProvider = StreamProvider<Map<String, int>>((ref) {
   final service = ref.watch(priceStreamServiceProvider);
-
-  ref.listen(
-    watchlistProvider,
-    (_, stocks) => service.setSymbols(stocks.map((s) => s.symbol)),
-    fireImmediately: true,
-  );
 
   // A socket left open in the background wastes battery and the OS may kill
   // it anyway; reconnect cleanly when the user comes back.
@@ -64,3 +60,10 @@ final quoteProvider = FutureProvider.family<Quote, String>(
   // spam the API. The user retries with pull-to-refresh instead.
   retry: (_, _) => null,
 );
+
+/// Best known price (cents) for a symbol: the live tick, else the quote.
+/// null means no price yet, so trading is disabled.
+final latestPriceProvider = Provider.family<int?, String>((ref, symbol) {
+  final live = ref.watch(livePricesProvider.select((p) => p.value?[symbol]));
+  return live ?? ref.watch(quoteProvider(symbol)).value?.currentCents;
+});

@@ -3,6 +3,7 @@
 class PortfolioSummary {
   const PortfolioSummary({
     required this.cashCents,
+    required this.investedCents,
     required this.marketValueCents,
     required this.unrealizedPnlCents,
     required this.portfolioValueCents,
@@ -11,6 +12,7 @@ class PortfolioSummary {
   });
 
   final int cashCents;
+  final int investedCents; // Σ qty * avgCost — what the holdings cost
   final int marketValueCents; // Σ qty * livePrice
   final int unrealizedPnlCents; // Σ (livePrice - avgCost) * qty
   final int portfolioValueCents; // cash + marketValue

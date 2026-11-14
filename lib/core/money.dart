@@ -26,3 +26,7 @@ String formatChange(int changeCents, int baseCents) {
   return '$arrow$sign${formatCents(changeCents.abs())} '
       '(${formatPercent(percent)})';
 }
+
+/// P&L style: 2210 → "+$22.10", -500 → "-$5.00", 0 → "$0.00".
+String formatSignedCents(int cents) =>
+    '${cents > 0 ? '+' : ''}${formatCents(cents)}';

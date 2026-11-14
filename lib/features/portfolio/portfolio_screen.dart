@@ -1,14 +1,130 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// Placeholder — built in Step 5 (ROADMAP.md).
-class PortfolioScreen extends StatelessWidget {
+import '../../app_shell.dart';
+import '../../core/money.dart';
+import '../../core/theme.dart';
+import 'portfolio_provider.dart';
+import 'widgets/holding_tile.dart';
+
+class PortfolioScreen extends ConsumerWidget {
   const PortfolioScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final holdings = ref.watch(
+      portfolioProvider.select((p) => p.holdings.values.toList()),
+    );
+
     return Scaffold(
       appBar: AppBar(title: const Text('Portfolio')),
-      body: const Center(child: Text('Coming in Step 5')),
+      body: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        children: [
+          const _SummaryCard(),
+          if (holdings.isEmpty)
+            const _EmptyState()
+          else
+            for (final h in holdings) ...[
+              HoldingTile(key: ValueKey(h.symbol), holding: h),
+              const Divider(height: 1),
+            ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Header with totals. Its own widget, so live price changes rebuild just
+/// this card and the affected tiles, not the whole list.
+class _SummaryCard extends ConsumerWidget {
+  const _SummaryCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final text = Theme.of(context).textTheme;
+    final s = ref.watch(portfolioSummaryProvider);
+    final returnColor = changeColor(s.totalReturnCents);
+    final arrow = s.totalReturnCents > 0
+        ? '▲ '
+        : (s.totalReturnCents < 0 ? '▼ ' : '');
+    const label = TextStyle(color: AppColors.textSecondary);
+
+    Widget stat(String name, int cents) => Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(name, style: text.labelMedium?.merge(label)),
+          Text(
+            formatCents(cents),
+            style: text.bodyLarge?.merge(tabularFigures),
+          ),
+        ],
+      ),
+    );
+
+    return Card(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Total value', style: text.labelMedium?.merge(label)),
+            Text(
+              formatCents(s.portfolioValueCents),
+              style: text.displaySmall?.merge(tabularFigures),
+            ),
+            Text(
+              '$arrow${formatSignedCents(s.totalReturnCents)} '
+              '(${formatPercent(s.totalReturnPercent)}) total return',
+              style: text.bodyLarge
+                  ?.merge(tabularFigures)
+                  .copyWith(color: returnColor),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                stat('Cash', s.cashCents),
+                stat('Invested', s.investedCents),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyState extends ConsumerWidget {
+  const _EmptyState();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        children: [
+          const Icon(
+            Icons.pie_chart_outline,
+            size: 64,
+            color: AppColors.textSecondary,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No holdings yet — buy your first stock',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 24),
+          FilledButton(
+            onPressed: () => ref
+                .read(tabIndexProvider.notifier)
+                .select(TabIndexNotifier.watchlist),
+            child: const Text('Go to Watchlist'),
+          ),
+        ],
+      ),
     );
   }
 }

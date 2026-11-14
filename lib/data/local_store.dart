@@ -27,6 +27,7 @@ class LocalStore {
   final Box<dynamic> _box;
 
   static const _watchlistKey = 'watchlist';
+  static const _portfolioKey = 'portfolio';
 
   static Future<LocalStore> open() async {
     await Hive.initFlutter();
@@ -48,4 +49,12 @@ class LocalStore {
   Future<void> saveWatchlist(List<Stock> stocks) => _box.put(_watchlistKey, [
     for (final s in stocks) {'symbol': s.symbol, 'name': s.name},
   ]);
+
+  /// The whole portfolio as one raw map, or null on first launch.
+  Object? readPortfolio() => _box.get(_portfolioKey);
+
+  /// One put = one write: cash, holdings and trades are saved together or
+  /// not at all, so a crash can't leave cash debited without the holding.
+  Future<void> writePortfolio(Map<String, Object?> data) =>
+      _box.put(_portfolioKey, data);
 }

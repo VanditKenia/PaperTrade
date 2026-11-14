@@ -103,17 +103,19 @@ abstract final class PortfolioEngine {
   static double unrealizedPnlPercent(Holding h, int livePriceCents) =>
       (livePriceCents - h.avgCostCents) / h.avgCostCents * 100;
 
-  /// [livePrices] maps symbol → price in cents.
+  /// [livePrices] maps symbol → latest price in cents (live or quote).
   static PortfolioSummary summary(
     PortfolioState state,
     Map<String, int> livePrices,
   ) {
     var marketValueSum = 0;
     var unrealizedSum = 0;
+    var investedSum = 0;
     for (final h in state.holdings.values) {
-      // shortcut: a symbol with no live price yet is valued at avg cost
-      // (P&L 0); upgrade to the last quote price once quotes are cached.
+      // A symbol with no price at all (no tick, no quote) is valued at avg
+      // cost, i.e. P&L 0, rather than 0, which would show a fake total loss.
       final price = livePrices[h.symbol] ?? h.avgCostCents;
+      investedSum += h.quantity * h.avgCostCents;
       marketValueSum += marketValue(h, price);
       unrealizedSum += unrealizedPnl(h, price);
     }
@@ -121,6 +123,7 @@ abstract final class PortfolioEngine {
     final totalReturn = value - startingCashCents;
     return PortfolioSummary(
       cashCents: state.wallet.cashCents,
+      investedCents: investedSum,
       marketValueCents: marketValueSum,
       unrealizedPnlCents: unrealizedSum,
       portfolioValueCents: value,

@@ -159,6 +159,7 @@ void main() {
       final s = buy(buy(start, 10, 10000), 5, 20000, 'MSFT');
       final sum = PortfolioEngine.summary(s, {'AAPL': 11000, 'MSFT': 19000});
       expect(sum.marketValueCents, 10 * 11000 + 5 * 19000);
+      expect(sum.investedCents, 10 * 10000 + 5 * 20000);
       expect(
         sum.portfolioValueCents,
         s.wallet.cashCents + 10 * 11000 + 5 * 19000,

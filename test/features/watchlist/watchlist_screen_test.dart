@@ -10,6 +10,9 @@ import 'package:papertrade/domain/models/stock.dart';
 import 'package:papertrade/features/stock_detail/stock_detail_screen.dart';
 import 'package:papertrade/features/watchlist/watchlist_provider.dart';
 import 'package:papertrade/features/watchlist/watchlist_screen.dart';
+import 'package:papertrade/data/portfolio_repository.dart';
+
+import '../../fakes.dart';
 
 Widget app(
   List<Stock> watchlist, {
@@ -18,6 +21,7 @@ Widget app(
 }) => ProviderScope(
   overrides: [
     watchlistProvider.overrideWithBuild((_, _) => watchlist),
+    portfolioRepositoryProvider.overrideWithValue(FakePortfolioRepository()),
     // Never open a real WebSocket in tests.
     livePricesProvider.overrideWith((_) => live ?? const Stream.empty()),
     finnhubApiProvider.overrideWithValue(

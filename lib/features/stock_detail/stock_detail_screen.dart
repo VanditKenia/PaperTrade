@@ -6,8 +6,11 @@ import '../../core/theme.dart';
 import '../../data/api_errors.dart';
 import '../../domain/models/quote.dart';
 import '../../domain/models/stock.dart';
+import '../../domain/models/trade.dart';
+import '../portfolio/portfolio_provider.dart';
 import '../watchlist/watchlist_provider.dart';
 import 'stock_detail_provider.dart';
+import 'widgets/order_sheet.dart';
 import 'widgets/price_chart.dart';
 
 class StockDetailScreen extends ConsumerWidget {
@@ -92,9 +95,11 @@ class StockDetailScreen extends ConsumerWidget {
             loading: () => const SizedBox.shrink(),
             error: (e, _) => Text(errorMessage(e), style: secondary),
           ),
+          const Divider(height: 32),
+          _Position(symbol: symbol, priceCents: price),
         ],
       ),
-      bottomNavigationBar: const _TradeBar(),
+      bottomNavigationBar: _TradeBar(stock: stock, priceCents: price),
     );
   }
 }
@@ -139,40 +144,109 @@ class _DayStats extends StatelessWidget {
   }
 }
 
-/// Sticky Buy/Sell bar. Placeholder until trading arrives in Step 5.
-class _TradeBar extends StatelessWidget {
-  const _TradeBar();
+class _Position extends ConsumerWidget {
+  const _Position({required this.symbol, required this.priceCents});
+
+  final String symbol;
+  final int? priceCents;
 
   @override
-  Widget build(BuildContext context) {
-    void comingSoon() => ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Trading is coming soon')));
+  Widget build(BuildContext context, WidgetRef ref) {
+    final text = Theme.of(context).textTheme;
+    final holding = ref.watch(
+      portfolioProvider.select((p) => p.holdings[symbol]),
+    );
+    if (holding == null) {
+      return Text('Your position: 0 shares', style: text.bodyLarge);
+    }
+    final qty = holding.quantity;
+    final price = priceCents;
+    final pnl = price == null ? null : (price - holding.avgCostCents) * qty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 4,
+      children: [
+        Text(
+          'Your position: $qty ${qty == 1 ? 'share' : 'shares'}',
+          style: text.bodyLarge,
+        ),
+        Text.rich(
+          TextSpan(
+            style: text.labelMedium?.merge(tabularFigures),
+            children: [
+              TextSpan(
+                text: 'Avg cost ${formatCents(holding.avgCostCents)}',
+                style: const TextStyle(color: AppColors.textSecondary),
+              ),
+              if (pnl != null)
+                TextSpan(
+                  text: ' · P&L ${formatSignedCents(pnl)}',
+                  style: TextStyle(color: changeColor(pnl)),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Sticky Buy/Sell bar. Both are disabled until a price is known; Sell also
+/// needs shares to sell (UI_UX.md §3.3).
+class _TradeBar extends ConsumerWidget {
+  const _TradeBar({required this.stock, required this.priceCents});
+
+  final Stock stock;
+  final int? priceCents;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final owns = ref.watch(
+      portfolioProvider.select((p) => p.holdings.containsKey(stock.symbol)),
+    );
+    final hasPrice = priceCents != null;
+    void open(TradeSide side) =>
+        showOrderSheet(context, stock: stock, side: side);
 
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-        child: Row(
-          spacing: 12,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
-              child: OutlinedButton(
-                // Disabled: no holdings exist until Step 5 (UI_UX.md §3.3).
-                onPressed: null,
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(48),
+            if (!hasPrice)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: Text(
+                  'Waiting for price…',
+                  style: TextStyle(color: AppColors.textSecondary),
                 ),
-                child: const Text('SELL'),
               ),
-            ),
-            Expanded(
-              child: FilledButton(
-                onPressed: comingSoon,
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(48),
+            Row(
+              spacing: 12,
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: hasPrice && owns
+                        ? () => open(TradeSide.sell)
+                        : null,
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                    ),
+                    child: const Text('SELL'),
+                  ),
                 ),
-                child: const Text('BUY'),
-              ),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: hasPrice ? () => open(TradeSide.buy) : null,
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                    ),
+                    child: const Text('BUY'),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

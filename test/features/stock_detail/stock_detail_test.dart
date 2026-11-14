@@ -10,17 +10,28 @@ import 'package:material_ui/material_ui.dart';
 import 'package:papertrade/core/theme.dart';
 import 'package:papertrade/data/finnhub_api.dart';
 import 'package:papertrade/data/price_stream_service.dart';
+import 'package:papertrade/domain/models/portfolio_state.dart';
 import 'package:papertrade/domain/models/stock.dart';
+import 'package:papertrade/domain/portfolio_engine.dart';
 import 'package:papertrade/features/stock_detail/stock_detail_provider.dart';
 import 'package:papertrade/features/stock_detail/stock_detail_screen.dart';
 import 'package:papertrade/features/watchlist/watchlist_provider.dart';
+import 'package:papertrade/data/portfolio_repository.dart';
+
+import '../../fakes.dart';
 
 const quoteJson =
     '{"c": 189.42, "d": 1.25, "dp": 0.66, "h": 190.02, "l": 187.55,'
     ' "o": 188.10, "pc": 188.17}';
 
-List<Override> overrides(Stream<Map<String, int>> live) => [
+List<Override> overrides(
+  Stream<Map<String, int>> live, {
+  PortfolioState? portfolio,
+}) => [
   watchlistProvider.overrideWithBuild((_, _) => const []),
+  portfolioRepositoryProvider.overrideWithValue(
+    FakePortfolioRepository(portfolio),
+  ),
   livePricesProvider.overrideWith((_) => live),
   // Never started, so it never opens a socket; it just records symbols.
   priceStreamServiceProvider.overrideWithValue(
@@ -83,11 +94,12 @@ void main() {
   group('StockDetailScreen', () {
     Future<void> open(
       WidgetTester tester,
-      Stream<Map<String, int>> live,
-    ) async {
+      Stream<Map<String, int>> live, {
+      PortfolioState? portfolio,
+    }) async {
       await tester.pumpWidget(
         ProviderScope(
-          overrides: overrides(live),
+          overrides: overrides(live, portfolio: portfolio),
           child: const MaterialApp(
             home: StockDetailScreen(
               stock: Stock(symbol: 'AAPL', name: 'Apple Inc'),
@@ -116,6 +128,33 @@ void main() {
         find.widgetWithText(OutlinedButton, 'SELL'),
       );
       expect(sell.onPressed, isNull); // nothing owned yet
+    });
+
+    testWidgets('shows the position with live P&L and enables Sell', (
+      tester,
+    ) async {
+      final owns5 = PortfolioEngine.buy(
+        PortfolioState.initial(),
+        symbol: 'AAPL',
+        quantity: 5,
+        priceCents: 18500,
+      );
+      await open(tester, const Stream.empty(), portfolio: owns5);
+      // The position sits below the chart; scroll it into view.
+      await tester.scrollUntilVisible(
+        find.text('Your position: 5 shares'),
+        200,
+      );
+
+      expect(find.text('Your position: 5 shares'), findsOneWidget);
+      expect(
+        find.text(r'Avg cost $185.00 · P&L +$22.10', findRichText: true),
+        findsOneWidget,
+      );
+      final sell = tester.widget<OutlinedButton>(
+        find.widgetWithText(OutlinedButton, 'SELL'),
+      );
+      expect(sell.onPressed, isNotNull);
     });
 
     testWidgets('live price below prev close turns the header red', (

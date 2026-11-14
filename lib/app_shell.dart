@@ -1,20 +1,30 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'features/history/history_screen.dart';
 import 'features/portfolio/portfolio_screen.dart';
 import 'features/settings/settings_screen.dart';
+import 'features/watchlist/price_subscriptions_provider.dart';
 import 'features/watchlist/watchlist_screen.dart';
 
-/// Bottom navigation: Watchlist · Portfolio · History · Settings.
-class AppShell extends StatefulWidget {
-  const AppShell({super.key});
+/// Selected bottom-nav tab. A provider (not widget state) so other screens
+/// can switch tabs, e.g. Portfolio's empty state → Watchlist.
+final tabIndexProvider = NotifierProvider<TabIndexNotifier, int>(
+  TabIndexNotifier.new,
+);
+
+class TabIndexNotifier extends Notifier<int> {
+  static const watchlist = 0;
 
   @override
-  State<AppShell> createState() => _AppShellState();
+  int build() => watchlist;
+
+  void select(int index) => state = index;
 }
 
-class _AppShellState extends State<AppShell> {
-  int _index = 0;
+/// Bottom navigation: Watchlist · Portfolio · History · Settings.
+class AppShell extends ConsumerWidget {
+  const AppShell({super.key});
 
   static const _screens = [
     WatchlistScreen(),
@@ -24,14 +34,17 @@ class _AppShellState extends State<AppShell> {
   ];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final index = ref.watch(tabIndexProvider);
+    // Keeps WebSocket subscriptions in sync for as long as the app runs.
+    ref.watch(priceSubscriptionsProvider);
     return Scaffold(
       // IndexedStack keeps every tab alive, so each keeps its scroll position
       // when you switch away and back (UI_UX.md §5).
-      body: IndexedStack(index: _index, children: _screens),
+      body: IndexedStack(index: index, children: _screens),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
+        selectedIndex: index,
+        onDestinationSelected: ref.read(tabIndexProvider.notifier).select,
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.list_alt_outlined),
