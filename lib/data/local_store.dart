@@ -28,6 +28,7 @@ class LocalStore {
 
   static const _watchlistKey = 'watchlist';
   static const _portfolioKey = 'portfolio';
+  static const _introSeenKey = 'introSeen';
 
   static Future<LocalStore> open() async {
     await Hive.initFlutter();
@@ -49,6 +50,11 @@ class LocalStore {
   Future<void> saveWatchlist(List<Stock> stocks) => _box.put(_watchlistKey, [
     for (final s in stocks) {'symbol': s.symbol, 'name': s.name},
   ]);
+
+  /// False until the user dismisses the first-launch banner.
+  bool get introSeen => _box.get(_introSeenKey) == true;
+
+  Future<void> markIntroSeen() => _box.put(_introSeenKey, true);
 
   /// The whole portfolio as one raw map, or null on first launch.
   Object? readPortfolio() => _box.get(_portfolioKey);

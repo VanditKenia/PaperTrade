@@ -16,6 +16,9 @@ final priceStreamServiceProvider = Provider<PriceStreamService>((ref) {
   return service;
 });
 
+/// What the UI shows about the socket (APP_FLOW.md §5).
+enum ConnectionStatus { connecting, live, reconnecting, offline }
+
 /// Live trade prices from the Finnhub WebSocket (API_SPEC.md §3).
 ///
 /// Keeps the latest price per symbol and publishes snapshots of all of them,
@@ -31,15 +34,19 @@ class PriceStreamService {
 
   static const throttleInterval = Duration(milliseconds: 500);
   static const maxSymbols = 50; // Finnhub free-tier limit
+  static const reconnectingAfter = Duration(seconds: 5);
 
   final _sources = <String, Set<String>>{};
   final _symbols = <String>{}; // currently subscribed
   final _latest = <String, int>{};
   final _snapshots = StreamController<Map<String, int>>.broadcast();
+  final _statusChanges = StreamController<ConnectionStatus>.broadcast();
 
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _sub;
   Timer? _reconnectTimer;
+  Timer? _reconnectingTimer;
+  ConnectionStatus _status = ConnectionStatus.connecting;
   bool _wanted = false; // true between start() and stop()
   bool _connected = false;
   int _failures = 0;
@@ -47,6 +54,14 @@ class PriceStreamService {
   /// Latest price (cents) per symbol, at most one snapshot per 500 ms.
   Stream<Map<String, int>> get prices =>
       throttleLatest(_snapshots.stream, throttleInterval);
+
+  ConnectionStatus get status => _status;
+
+  /// Current status first, then every change.
+  Stream<ConnectionStatus> get statusStream async* {
+    yield _status;
+    yield* _statusChanges.stream;
+  }
 
   void start() {
     if (_wanted) return;
@@ -60,11 +75,14 @@ class PriceStreamService {
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
     _close();
+    // Back from the background is a fresh start, not an outage.
+    _setStatus(ConnectionStatus.connecting);
   }
 
   void dispose() {
     stop();
     _snapshots.close();
+    _statusChanges.close();
   }
 
   /// Sets the symbols one [source] (watchlist, an open detail screen…) wants.
@@ -107,11 +125,17 @@ class PriceStreamService {
     try {
       await channel.ready;
     } catch (_) {
-      if (identical(channel, _channel)) _reconnect();
+      if (!identical(channel, _channel)) return;
+      // shortcut: a failed handshake is treated as "no internet"; it could
+      // also be a server refusal (bad key, too many sockets). Add a
+      // connectivity check if that confuses users.
+      _setStatus(ConnectionStatus.offline);
+      _reconnect();
       return;
     }
     if (!identical(channel, _channel)) return; // stopped or replaced meanwhile
     _connected = true;
+    _setStatus(ConnectionStatus.live);
     // Finnhub forgets subscriptions when a socket closes, so resend them all.
     for (final s in _symbols) {
       _send('subscribe', s);
@@ -132,6 +156,15 @@ class PriceStreamService {
   void _reconnect() {
     _close();
     if (!_wanted || _reconnectTimer != null) return;
+    // Most drops heal within a second or two; only mention it if not.
+    if (_status == ConnectionStatus.live) {
+      _reconnectingTimer?.cancel();
+      _reconnectingTimer = Timer(reconnectingAfter, () {
+        if (_status == ConnectionStatus.live && !_connected) {
+          _setStatus(ConnectionStatus.reconnecting);
+        }
+      });
+    }
     // 1 s, 2 s, 4 s … capped at 30 s, so a long outage doesn't hammer the
     // server (or the battery).
     final delay = Duration(seconds: min(30, 1 << min(_failures, 5)));
@@ -143,6 +176,16 @@ class PriceStreamService {
       _reconnectTimer = null;
       if (_wanted) _open();
     });
+  }
+
+  void _setStatus(ConnectionStatus next) {
+    if (next == _status) return;
+    _status = next;
+    if (next != ConnectionStatus.live) {
+      _reconnectingTimer?.cancel();
+      _reconnectingTimer = null;
+    }
+    if (!_statusChanges.isClosed) _statusChanges.add(next);
   }
 
   void _close() {

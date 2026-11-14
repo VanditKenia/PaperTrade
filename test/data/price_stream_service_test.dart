@@ -226,6 +226,49 @@ void main() {
       });
     });
 
+    test('status: offline on failed open, live once open', () {
+      fakeAsync((time) {
+        expect(service.status, ConnectionStatus.connecting);
+        service.start();
+        channels.single.failToOpen();
+        time.flushMicrotasks();
+        expect(service.status, ConnectionStatus.offline);
+
+        time.elapse(const Duration(seconds: 1));
+        channels[1].open();
+        time.flushMicrotasks();
+        expect(service.status, ConnectionStatus.live);
+      });
+    });
+
+    test('status: a drop shows "reconnecting" only after 5 s', () {
+      fakeAsync((time) {
+        service.start();
+        channels.single.open();
+        time.flushMicrotasks();
+
+        // Quick drop that heals within 5 s: never shown.
+        channels.single.server.close();
+        time.flushMicrotasks();
+        time.elapse(const Duration(seconds: 1));
+        channels[1].open();
+        time.flushMicrotasks();
+        time.elapse(const Duration(seconds: 10));
+        expect(service.status, ConnectionStatus.live);
+
+        // Drop where the reconnect hangs: shown after 5 s.
+        channels[1].server.close();
+        time.flushMicrotasks();
+        time.elapse(const Duration(milliseconds: 4999));
+        expect(service.status, ConnectionStatus.live);
+        time.elapse(const Duration(milliseconds: 1));
+        expect(service.status, ConnectionStatus.reconnecting);
+
+        service.stop();
+        expect(service.status, ConnectionStatus.connecting);
+      });
+    });
+
     test('stop() closes and does not reconnect; start() reconnects', () {
       fakeAsync((time) {
         service.start();

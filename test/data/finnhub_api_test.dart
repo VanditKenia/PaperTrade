@@ -169,4 +169,23 @@ void main() {
       expect(logs.single, isNot(contains('secret-key')));
     });
   });
+
+  group('isMarketOpen', () {
+    test('reads isOpen', () async {
+      expect(await apiReturning({'isOpen': true}).isMarketOpen(), isTrue);
+      expect(await apiReturning({'isOpen': false}).isMarketOpen(), isFalse);
+    });
+
+    test('missing or wrong-typed isOpen → UnknownError', () async {
+      for (final body in [
+        <String, Object>{},
+        {'isOpen': 'yes'},
+      ]) {
+        await expectLater(
+          apiReturning(body).isMarketOpen(),
+          throwsA(isA<UnknownError>()),
+        );
+      }
+    });
+  });
 }

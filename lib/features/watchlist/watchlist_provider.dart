@@ -36,6 +36,42 @@ class WatchlistNotifier extends Notifier<List<Stock>> {
   }
 }
 
+/// One-time "virtual cash" banner on the Watchlist (APP_FLOW.md §2).
+final showIntroProvider = NotifierProvider<ShowIntroNotifier, bool>(
+  ShowIntroNotifier.new,
+);
+
+class ShowIntroNotifier extends Notifier<bool> {
+  @override
+  bool build() => !ref.watch(localStoreProvider).introSeen;
+
+  void dismiss() {
+    state = false;
+    unawaited(ref.read(localStoreProvider).markIntroSeen());
+  }
+}
+
+/// Live / reconnecting / offline, from the WebSocket. Like the prices, this
+/// must never depend on the portfolio.
+final connectionStatusProvider = StreamProvider<ConnectionStatus>(
+  (ref) => ref.watch(priceStreamServiceProvider).statusStream,
+);
+
+/// True when offline: banner shown, Buy/Sell disabled (APP_FLOW.md §5).
+final isOfflineProvider = Provider<bool>(
+  (ref) =>
+      ref.watch(connectionStatusProvider).value == ConnectionStatus.offline,
+);
+
+/// US market open/closed. Re-checked every 5 minutes so the chip flips
+/// around the opening and closing bell; while reloading the last answer
+/// stays on screen.
+final marketOpenProvider = FutureProvider<bool>((ref) {
+  final timer = Timer(const Duration(minutes: 5), ref.invalidateSelf);
+  ref.onDispose(timer.cancel);
+  return ref.watch(marketRepositoryProvider).isMarketOpen();
+}, retry: (_, _) => null);
+
 /// Latest live price (cents) per symbol, updated at most every 500 ms.
 /// Depends only on the socket, never on the portfolio: trading code reads
 /// prices, so anything here that watched the portfolio would be a cycle.

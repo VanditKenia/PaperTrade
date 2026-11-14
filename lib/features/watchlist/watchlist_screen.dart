@@ -5,6 +5,8 @@ import '../../core/theme.dart';
 import '../../domain/models/stock.dart';
 import '../search/search_screen.dart';
 import 'watchlist_provider.dart';
+import 'widgets/market_status_bar.dart';
+import 'widgets/offline_banner.dart';
 import 'widgets/price_tile.dart';
 
 class WatchlistScreen extends ConsumerWidget {
@@ -32,6 +34,7 @@ class WatchlistScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final stocks = ref.watch(watchlistProvider);
+    final showIntro = ref.watch(showIntroProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -44,36 +47,58 @@ class WatchlistScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: stocks.isEmpty
-          ? _EmptyState(onSearch: () => _openSearch(context))
-          : RefreshIndicator(
-              onRefresh: () => _refresh(ref, stocks),
-              child: ListView.separated(
-                itemCount: stocks.length,
-                separatorBuilder: (_, _) => const Divider(height: 1),
-                itemBuilder: (context, i) {
-                  final stock = stocks[i];
-                  return Dismissible(
-                    key: ValueKey(stock.symbol),
-                    direction: DismissDirection.endToStart,
-                    onDismissed: (_) => ref
-                        .read(watchlistProvider.notifier)
-                        .remove(stock.symbol),
-                    background: Container(
-                      color: AppColors.loss,
-                      alignment: Alignment.centerRight,
-                      padding: const EdgeInsets.only(right: 24),
-                      child: const Icon(
-                        Icons.delete_outline,
-                        semanticLabel: 'Remove',
-                      ),
-                    ),
-                    child: PriceTile(stock: stock),
-                  );
-                },
+      body: Column(
+        children: [
+          const OfflineBanner(),
+          const MarketStatusBar(),
+          if (showIntro)
+            MaterialBanner(
+              content: const Text(
+                'You have \$100,000 virtual cash. Prices are real, money is '
+                'not. Tap any stock to start trading.',
               ),
+              actions: [
+                TextButton(
+                  onPressed: ref.read(showIntroProvider.notifier).dismiss,
+                  child: const Text('Got it'),
+                ),
+              ],
             ),
+          Expanded(child: _list(context, ref, stocks)),
+        ],
+      ),
     );
+  }
+
+  Widget _list(BuildContext context, WidgetRef ref, List<Stock> stocks) {
+    return stocks.isEmpty
+        ? _EmptyState(onSearch: () => _openSearch(context))
+        : RefreshIndicator(
+            onRefresh: () => _refresh(ref, stocks),
+            child: ListView.separated(
+              itemCount: stocks.length,
+              separatorBuilder: (_, _) => const Divider(height: 1),
+              itemBuilder: (context, i) {
+                final stock = stocks[i];
+                return Dismissible(
+                  key: ValueKey(stock.symbol),
+                  direction: DismissDirection.endToStart,
+                  onDismissed: (_) =>
+                      ref.read(watchlistProvider.notifier).remove(stock.symbol),
+                  background: Container(
+                    color: AppColors.loss,
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 24),
+                    child: const Icon(
+                      Icons.delete_outline,
+                      semanticLabel: 'Remove',
+                    ),
+                  ),
+                  child: PriceTile(stock: stock),
+                );
+              },
+            ),
+          );
   }
 }
 

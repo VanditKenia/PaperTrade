@@ -1,5 +1,7 @@
 import 'package:intl/intl.dart';
 
+import '../domain/models/stock.dart';
+
 /// Converts an API price (double dollars) to int cents — the only place a
 /// double price becomes money.
 int toCents(double price) => (price * 100).round();
@@ -30,3 +32,13 @@ String formatChange(int changeCents, int baseCents) {
 /// P&L style: 2210 → "+$22.10", -500 → "-$5.00", 0 → "$0.00".
 String formatSignedCents(int cents) =>
     '${cents > 0 ? '+' : ''}${formatCents(cents)}';
+
+/// "1 share" / "5 shares"; crypto: "1 unit" / "5 units".
+String formatQuantity(String symbol, int qty) {
+  final unit = isCrypto(symbol) ? 'unit' : 'share';
+  return '$qty $unit${qty == 1 ? '' : 's'}';
+}
+
+/// Compact form for list rows: "5 sh"; crypto: "Qty 5".
+String formatQuantityShort(String symbol, int qty) =>
+    isCrypto(symbol) ? 'Qty $qty' : '$qty sh';

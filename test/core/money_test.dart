@@ -30,4 +30,15 @@ void main() {
       expect(formatPercent(-0.001), '0.00%');
     });
   });
+
+  group('formatQuantity', () {
+    test('stocks use shares, crypto uses units', () {
+      expect(formatQuantity('AAPL', 1), '1 share');
+      expect(formatQuantity('AAPL', 5), '5 shares');
+      expect(formatQuantity('BINANCE:BTCUSDT', 1), '1 unit');
+      expect(formatQuantity('BINANCE:BTCUSDT', 2), '2 units');
+      expect(formatQuantityShort('AAPL', 5), '5 sh');
+      expect(formatQuantityShort('BINANCE:BTCUSDT', 1), 'Qty 1');
+    });
+  });
 }

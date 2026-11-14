@@ -2,8 +2,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../app_shell.dart';
+import '../../core/animated_number.dart';
 import '../../core/money.dart';
 import '../../core/theme.dart';
+import '../watchlist/widgets/offline_banner.dart';
 import 'portfolio_provider.dart';
 import 'widgets/holding_tile.dart';
 
@@ -18,17 +20,24 @@ class PortfolioScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Portfolio')),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+      body: Column(
         children: [
-          const _SummaryCard(),
-          if (holdings.isEmpty)
-            const _EmptyState()
-          else
-            for (final h in holdings) ...[
-              HoldingTile(key: ValueKey(h.symbol), holding: h),
-              const Divider(height: 1),
-            ],
+          const OfflineBanner(),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              children: [
+                const _SummaryCard(),
+                if (holdings.isEmpty)
+                  const _EmptyState()
+                else
+                  for (final h in holdings) ...[
+                    HoldingTile(key: ValueKey(h.symbol), holding: h),
+                    const Divider(height: 1),
+                  ],
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -55,9 +64,10 @@ class _SummaryCard extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(name, style: text.labelMedium?.merge(label)),
-          Text(
+          AnimatedNumber(
             formatCents(cents),
-            style: text.bodyLarge?.merge(tabularFigures),
+            style: text.bodyLarge,
+            alignment: Alignment.centerLeft,
           ),
         ],
       ),
@@ -71,16 +81,16 @@ class _SummaryCard extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Total value', style: text.labelMedium?.merge(label)),
-            Text(
+            AnimatedNumber(
               formatCents(s.portfolioValueCents),
-              style: text.displaySmall?.merge(tabularFigures),
+              style: text.displaySmall,
+              alignment: Alignment.centerLeft,
             ),
-            Text(
+            AnimatedNumber(
               '$arrow${formatSignedCents(s.totalReturnCents)} '
               '(${formatPercent(s.totalReturnPercent)}) total return',
-              style: text.bodyLarge
-                  ?.merge(tabularFigures)
-                  .copyWith(color: returnColor),
+              style: text.bodyLarge?.copyWith(color: returnColor),
+              alignment: Alignment.centerLeft,
             ),
             const SizedBox(height: 16),
             Row(

@@ -4,3 +4,7 @@
 const finnhubApiKey = String.fromEnvironment('FINNHUB_API_KEY');
 
 bool get hasApiKey => finnhubApiKey.isNotEmpty;
+
+// shortcut: copied by hand from pubspec.yaml; use package_info_plus if the
+// two ever drift.
+const appVersion = '1.0.0';

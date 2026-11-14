@@ -15,6 +15,8 @@ void main() {
       ProviderScope(
         overrides: [
           watchlistProvider.overrideWithBuild((_, _) => []),
+          showIntroProvider.overrideWithBuild((_, _) => false),
+          marketOpenProvider.overrideWithValue(const AsyncData(true)),
           portfolioRepositoryProvider.overrideWithValue(
             FakePortfolioRepository(),
           ),

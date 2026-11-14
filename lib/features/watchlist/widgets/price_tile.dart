@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../../core/animated_number.dart';
 import '../../../core/money.dart';
 import '../../../core/theme.dart';
 import '../../../data/api_errors.dart';
@@ -128,16 +129,11 @@ class _PriceState extends State<_Price> with SingleTickerProviderStateMixin {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text(
-              formatCents(price),
-              style: text.bodyLarge?.merge(tabularFigures),
-            ),
+            AnimatedNumber(formatCents(price), style: text.bodyLarge),
             if (prevClose > 0)
-              Text(
+              AnimatedNumber(
                 formatChange(change, prevClose),
-                style: text.labelMedium
-                    ?.merge(tabularFigures)
-                    .copyWith(color: changeColor(change)),
+                style: text.labelMedium?.copyWith(color: changeColor(change)),
               ),
           ],
         ),

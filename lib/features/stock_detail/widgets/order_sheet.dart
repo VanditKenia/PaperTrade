@@ -111,6 +111,10 @@ class _OrderSheetState extends ConsumerState<OrderSheet> {
     final text = Theme.of(context).textTheme;
     final symbol = widget.stock.symbol;
     final price = ref.watch(latestPriceProvider(symbol));
+    final offline = ref.watch(isOfflineProvider);
+    // Trading stays allowed while closed, at the last price (APP_FLOW.md §5).
+    final marketClosed =
+        !isCrypto(symbol) && ref.watch(marketOpenProvider).value == false;
     final cash = ref.watch(portfolioProvider.select((p) => p.wallet.cashCents));
     final holding = ref.watch(
       portfolioProvider.select((p) => p.holdings[symbol]),
@@ -121,14 +125,16 @@ class _OrderSheetState extends ConsumerState<OrderSheet> {
     final total = qty * (price ?? 0);
     final maxQty = price == null ? 0 : (_isBuy ? cash ~/ price : owned);
     final cashAfter = _isBuy ? cash - total : cash + total;
-    final validation = price == null
+    final validation = offline
+        ? 'Offline — trading paused'
+        : price == null
         ? 'Waiting for price…'
         : qty < 1
         ? 'Enter a quantity of at least 1'
         : _isBuy && total > cash
         ? 'Not enough cash'
         : !_isBuy && qty > owned
-        ? 'You own only $owned ${owned == 1 ? 'share' : 'shares'}'
+        ? 'You own only ${formatQuantity(symbol, owned)}'
         : null;
     final message = validation ?? _submitError;
     final canConfirm = validation == null && !_submitting;
@@ -159,7 +165,10 @@ class _OrderSheetState extends ConsumerState<OrderSheet> {
                 style: text.titleLarge,
               ),
               const SizedBox(height: 16),
-              row('Market price', price == null ? '—' : formatCents(price)),
+              row(
+                marketClosed ? 'Last price (market closed)' : 'Market price',
+                price == null ? '—' : formatCents(price),
+              ),
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -254,7 +263,7 @@ String _tradeSummary(Trade t) {
 
 String tradeErrorMessage(TradeError e) => switch (e) {
   InsufficientFunds() => 'Not enough cash',
-  InsufficientShares() => "You don't own enough shares",
+  InsufficientShares() => "You don't own that many",
   InvalidQuantity() => 'Enter a quantity of at least 1',
   PriceUnavailable() => 'Waiting for price…',
 };

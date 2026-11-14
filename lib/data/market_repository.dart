@@ -26,6 +26,8 @@ class MarketRepository {
 
   Future<List<Stock>> search(String query) => _call(() => _api.search(query));
 
+  Future<bool> isMarketOpen() => _call(_api.isMarketOpen);
+
   Future<Quote> quote(String symbol) async {
     final cached = _quotes[symbol];
     if (cached != null && _now().difference(cached.fetchedAt) < _quoteTtl) {

@@ -96,15 +96,16 @@ void main() {
       WidgetTester tester,
       Stream<Map<String, int>> live, {
       PortfolioState? portfolio,
+      List<Override> extra = const [],
+      Stock stock = const Stock(symbol: 'AAPL', name: 'Apple Inc'),
     }) async {
       await tester.pumpWidget(
         ProviderScope(
-          overrides: overrides(live, portfolio: portfolio),
-          child: const MaterialApp(
-            home: StockDetailScreen(
-              stock: Stock(symbol: 'AAPL', name: 'Apple Inc'),
-            ),
-          ),
+          overrides: [
+            ...overrides(live, portfolio: portfolio),
+            ...extra,
+          ],
+          child: MaterialApp(home: StockDetailScreen(stock: stock)),
         ),
       );
       await tester.pumpAndSettle();
@@ -201,6 +202,51 @@ void main() {
       expect(dashedLines(tester), isEmpty);
       // Still colored by the day: $195 is above prev close → green.
       expect(data.lineBarsData.single.color, AppColors.gain);
+    });
+
+    testWidgets('offline: banner shown, Buy and Sell disabled', (tester) async {
+      await open(
+        tester,
+        const Stream.empty(),
+        extra: [
+          connectionStatusProvider.overrideWithValue(
+            const AsyncData(ConnectionStatus.offline),
+          ),
+        ],
+      );
+      expect(find.text('Offline — showing last prices'), findsOneWidget);
+      expect(find.text('Offline — trading paused'), findsOneWidget);
+      final buy = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'BUY'),
+      );
+      expect(buy.onPressed, isNull);
+    });
+
+    testWidgets('market closed: labelled, trading still allowed', (
+      tester,
+    ) async {
+      await open(
+        tester,
+        const Stream.empty(),
+        extra: [marketOpenProvider.overrideWithValue(const AsyncData(false))],
+      );
+      expect(find.text('Market closed · last price'), findsOneWidget);
+      final buy = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'BUY'),
+      );
+      expect(buy.onPressed, isNotNull);
+    });
+
+    testWidgets('crypto ignores market hours and counts units', (tester) async {
+      await open(
+        tester,
+        const Stream.empty(),
+        stock: const Stock(symbol: 'BINANCE:BTCUSDT', name: 'Bitcoin'),
+        extra: [marketOpenProvider.overrideWithValue(const AsyncData(false))],
+      );
+      expect(find.text('Market closed · last price'), findsNothing);
+      await tester.scrollUntilVisible(find.text('Your position: 0 units'), 200);
+      expect(find.text('Your position: 0 units'), findsOneWidget);
     });
   });
 }

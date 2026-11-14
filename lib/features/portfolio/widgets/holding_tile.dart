@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../../core/animated_number.dart';
 import '../../../core/money.dart';
 import '../../../core/theme.dart';
 import '../../../domain/models/holding.dart';
@@ -45,7 +46,7 @@ class HoldingTile extends ConsumerWidget {
         style: text.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
       ),
       subtitle: Text(
-        '${holding.quantity} sh · avg ${formatCents(holding.avgCostCents)}',
+        '${formatQuantityShort(symbol, holding.quantity)} · avg ${formatCents(holding.avgCostCents)}',
         style: secondary?.merge(tabularFigures),
       ),
       trailing: price == null
@@ -73,15 +74,10 @@ class _PnL extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        Text(
-          formatCents(priceCents),
-          style: text.bodyLarge?.merge(tabularFigures),
-        ),
-        Text(
+        AnimatedNumber(formatCents(priceCents), style: text.bodyLarge),
+        AnimatedNumber(
           '$arrow${formatSignedCents(pnl)} (${formatPercent(percent)})',
-          style: text.labelMedium
-              ?.merge(tabularFigures)
-              .copyWith(color: changeColor(pnl)),
+          style: text.labelMedium?.copyWith(color: changeColor(pnl)),
         ),
       ],
     );

@@ -77,6 +77,14 @@ class FinnhubApi {
     );
   }
 
+  /// Whether the US market is open now (API_SPEC.md §2.4).
+  Future<bool> isMarketOpen() async {
+    final json = await _get('/api/v1/stock/market-status', {'exchange': 'US'});
+    final open = json['isOpen'];
+    if (open is! bool) throw const UnknownError();
+    return open;
+  }
+
   Future<Map<String, dynamic>> _get(
     String path,
     Map<String, String> params,

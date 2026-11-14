@@ -56,4 +56,10 @@ void main() {
     ]);
     expect(LocalStore(box).loadWatchlist().map((s) => s.symbol), ['AAPL']);
   });
+
+  test('intro banner shows until dismissed, and stays dismissed', () async {
+    expect(LocalStore(box).introSeen, isFalse);
+    await LocalStore(box).markIntroSeen();
+    expect(LocalStore(box).introSeen, isTrue);
+  });
 }

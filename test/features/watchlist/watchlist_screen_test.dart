@@ -21,6 +21,7 @@ Widget app(
 }) => ProviderScope(
   overrides: [
     watchlistProvider.overrideWithBuild((_, _) => watchlist),
+    showIntroProvider.overrideWithBuild((_, _) => false),
     portfolioRepositoryProvider.overrideWithValue(FakePortfolioRepository()),
     // Never open a real WebSocket in tests.
     livePricesProvider.overrideWith((_) => live ?? const Stream.empty()),

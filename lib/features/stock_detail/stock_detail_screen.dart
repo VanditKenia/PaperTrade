@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../core/animated_number.dart';
 import '../../core/money.dart';
 import '../../core/theme.dart';
 import '../../data/api_errors.dart';
@@ -9,6 +10,7 @@ import '../../domain/models/stock.dart';
 import '../../domain/models/trade.dart';
 import '../portfolio/portfolio_provider.dart';
 import '../watchlist/watchlist_provider.dart';
+import '../watchlist/widgets/offline_banner.dart';
 import 'stock_detail_provider.dart';
 import 'widgets/order_sheet.dart';
 import 'widgets/price_chart.dart';
@@ -28,6 +30,10 @@ class StockDetailScreen extends ConsumerWidget {
     final watched = ref.watch(
       watchlistProvider.select((l) => l.any((s) => s.symbol == symbol)),
     );
+
+    // Crypto trades 24/7, so the US market's hours don't apply to it.
+    final marketClosed =
+        !isCrypto(symbol) && ref.watch(marketOpenProvider).value == false;
 
     final q = quote.value;
     final price = live ?? q?.currentCents;
@@ -52,51 +58,63 @@ class StockDetailScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      body: Column(
         children: [
-          Text(stock.name, style: secondary),
-          const SizedBox(height: 8),
-          Text(
-            price == null ? '—' : formatCents(price),
-            style: text.displaySmall?.merge(tabularFigures),
-          ),
-          if (price != null && prevClose > 0)
-            Text(
-              '${formatChange(change, prevClose)} today',
-              style: text.bodyLarge
-                  ?.merge(tabularFigures)
-                  .copyWith(color: changeColor(change)),
-            ),
-          const SizedBox(height: 24),
-          SizedBox(
-            height: 200,
-            child: points.isEmpty
-                ? Center(
-                    child: quote.isLoading
-                        ? const CircularProgressIndicator()
-                        : Text('Waiting for price…', style: secondary),
-                  )
-                : PriceChart(
-                    pointsCents: points,
-                    prevCloseCents: prevClose,
-                    // Green/red by direction on the day, not the last tick.
-                    color: change < 0 ? AppColors.loss : AppColors.gain,
+          const OfflineBanner(),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                Text(stock.name, style: secondary),
+                const SizedBox(height: 8),
+                AnimatedNumber(
+                  price == null ? '—' : formatCents(price),
+                  style: text.displaySmall,
+                  alignment: Alignment.centerLeft,
+                ),
+                if (price != null && prevClose > 0)
+                  AnimatedNumber(
+                    '${formatChange(change, prevClose)} today',
+                    style: text.bodyLarge?.copyWith(color: changeColor(change)),
+                    alignment: Alignment.centerLeft,
                   ),
+                if (price != null && marketClosed)
+                  Text(
+                    'Market closed · last price',
+                    style: text.labelMedium?.copyWith(color: AppColors.warning),
+                  ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  height: 200,
+                  child: points.isEmpty
+                      ? Center(
+                          child: quote.isLoading
+                              ? const CircularProgressIndicator()
+                              : Text('Waiting for price…', style: secondary),
+                        )
+                      : PriceChart(
+                          pointsCents: points,
+                          prevCloseCents: prevClose,
+                          // Green/red by direction on the day, not the last tick.
+                          color: change < 0 ? AppColors.loss : AppColors.gain,
+                        ),
+                ),
+                const SizedBox(height: 12),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Chip(label: Text('Live')),
+                ),
+                const SizedBox(height: 16),
+                quote.when(
+                  data: (q) => _DayStats(q),
+                  loading: () => const SizedBox.shrink(),
+                  error: (e, _) => Text(errorMessage(e), style: secondary),
+                ),
+                const Divider(height: 32),
+                _Position(symbol: symbol, priceCents: price),
+              ],
+            ),
           ),
-          const SizedBox(height: 12),
-          const Align(
-            alignment: Alignment.centerLeft,
-            child: Chip(label: Text('Live')),
-          ),
-          const SizedBox(height: 16),
-          quote.when(
-            data: (q) => _DayStats(q),
-            loading: () => const SizedBox.shrink(),
-            error: (e, _) => Text(errorMessage(e), style: secondary),
-          ),
-          const Divider(height: 32),
-          _Position(symbol: symbol, priceCents: price),
         ],
       ),
       bottomNavigationBar: _TradeBar(stock: stock, priceCents: price),
@@ -157,7 +175,10 @@ class _Position extends ConsumerWidget {
       portfolioProvider.select((p) => p.holdings[symbol]),
     );
     if (holding == null) {
-      return Text('Your position: 0 shares', style: text.bodyLarge);
+      return Text(
+        'Your position: ${formatQuantity(symbol, 0)}',
+        style: text.bodyLarge,
+      );
     }
     final qty = holding.quantity;
     final price = priceCents;
@@ -168,7 +189,7 @@ class _Position extends ConsumerWidget {
       spacing: 4,
       children: [
         Text(
-          'Your position: $qty ${qty == 1 ? 'share' : 'shares'}',
+          'Your position: ${formatQuantity(symbol, qty)}',
           style: text.bodyLarge,
         ),
         Text.rich(
@@ -192,8 +213,8 @@ class _Position extends ConsumerWidget {
   }
 }
 
-/// Sticky Buy/Sell bar. Both are disabled until a price is known; Sell also
-/// needs shares to sell (UI_UX.md §3.3).
+/// Sticky Buy/Sell bar. Both are disabled offline or until a price is
+/// known; Sell also needs shares to sell (UI_UX.md §3.3, APP_FLOW.md §5).
 class _TradeBar extends ConsumerWidget {
   const _TradeBar({required this.stock, required this.priceCents});
 
@@ -205,7 +226,8 @@ class _TradeBar extends ConsumerWidget {
     final owns = ref.watch(
       portfolioProvider.select((p) => p.holdings.containsKey(stock.symbol)),
     );
-    final hasPrice = priceCents != null;
+    final offline = ref.watch(isOfflineProvider);
+    final canTrade = priceCents != null && !offline;
     void open(TradeSide side) =>
         showOrderSheet(context, stock: stock, side: side);
 
@@ -215,12 +237,12 @@ class _TradeBar extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (!hasPrice)
-              const Padding(
-                padding: EdgeInsets.only(bottom: 8),
+            if (!canTrade)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
                 child: Text(
-                  'Waiting for price…',
-                  style: TextStyle(color: AppColors.textSecondary),
+                  offline ? 'Offline — trading paused' : 'Waiting for price…',
+                  style: const TextStyle(color: AppColors.textSecondary),
                 ),
               ),
             Row(
@@ -228,7 +250,7 @@ class _TradeBar extends ConsumerWidget {
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: hasPrice && owns
+                    onPressed: canTrade && owns
                         ? () => open(TradeSide.sell)
                         : null,
                     style: OutlinedButton.styleFrom(
@@ -239,7 +261,7 @@ class _TradeBar extends ConsumerWidget {
                 ),
                 Expanded(
                   child: FilledButton(
-                    onPressed: hasPrice ? () => open(TradeSide.buy) : null,
+                    onPressed: canTrade ? () => open(TradeSide.buy) : null,
                     style: FilledButton.styleFrom(
                       minimumSize: const Size.fromHeight(48),
                     ),
