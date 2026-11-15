@@ -48,18 +48,21 @@ A clean mobile app where users trade **real stocks at live market prices** using
 | F9 | **Persistence** — watchlist, wallet, holdings, trades survive app restart | P0 |
 | F10 | **Reset account** — restart with fresh $100,000 | P1 |
 | F11 | **Market status** — show "Market open/closed" | P2 |
+| F12 | **Limit & stop-loss orders** — limit buy/sell and stop-loss sell, open-orders list with cancel; fill on live ticks while the app is open | P2 |
+| F13 | **Performance stats** — realized P&L, trade count, win rate, average win/loss, best/worst trade, portfolio value over time | P2 |
+| F14 | **Price alerts** — "rises above / falls below $X" per stock; fires once on a live tick while the app is open; in-app snackbar, Android notification; list with delete | P2 |
 
 ### Out of scope (v1.0)
 
 - Real money, payments, UPI, or broker integration
 - User accounts / login / cloud sync
-- Limit orders, stop-loss, short selling, options
+- Short selling, options; orders that fill while the app is closed
 - Indian stocks (NSE/BSE) — free real-time data not available (future)
-- Push notifications / price alerts (future)
+- Push notifications from a server; alerts that fire while the app is closed
 
 ### Future (v2+)
 
-Limit & stop-loss orders · price alerts · NSE/BSE support · leaderboard · performance analytics (win rate, best trade) · dark/light theme toggle
+Server-side price alerts (fire while closed) · NSE/BSE support · leaderboard · deeper analytics (drawdown, per-symbol) · dark/light theme toggle
 
 ## 6. User stories
 
@@ -76,11 +79,13 @@ Limit & stop-loss orders · price alerts · NSE/BSE support · leaderboard · pe
 
 ## 7. Business rules (summary — full detail in TRD.md)
 
-1. Starting virtual cash: **$100,000.00**
-2. Orders fill instantly at the **latest known price**.
-3. Cannot buy more than cash allows. Cannot sell more shares than owned.
-4. Quantity must be a whole number ≥ 1.
+1. Starting virtual cash: **chosen by the user** on first launch (and on reset): whole dollars from **$100 to $10,000,000**; presets $1K / $10K / $50K / $100K / $1M; default **$100,000**. Total return is measured against this amount.
+2. Market orders fill instantly at the **latest known price**. Limit and stop-loss orders fill at the price of the live tick that triggers them: limit buy when price ≤ limit, limit sell when price ≥ limit, stop-loss sell when price ≤ stop. They only execute **while the app is open**.
+3. Cannot buy more than *available* cash allows, or sell more than *available* shares. Open orders reserve what they need: a limit buy reserves its cost at the limit price, a sell order reserves its shares. Cancelling releases it.
+4. Quantity can be fractional: up to 4 decimals, minimum 0.0001 share, or entered as a dollar amount. An order must be worth at least $0.01.
 5. No fees or commissions in v1.0.
+6. Performance stats are computed from trades: win rate = sells with a positive realized P&L ÷ all sells (break-even sells are neither wins nor losses); averages are in whole cents, rounded half up. The value chart records the portfolio value on every trade and at most every 5 minutes while the app is open (last 2,000 points); a reset starts it over.
+7. A price alert fires **once**, on the first live tick that crosses its target (rises to/above, or falls to/below), and then stays in the list as triggered. The target must be on the far side of the current price when created. Alerts only work **while the app is open** (no backend).
 
 ## 8. Assumptions & constraints
 

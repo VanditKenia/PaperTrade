@@ -1,13 +1,15 @@
 # Security
 
-PaperTrade handles **no real money, no accounts, and no personal data**. The security goals are: protect the API key, keep local data intact, and never let bad input corrupt the portfolio.
+PaperTrade handles **no real money, no accounts, and no personal data**. The security goals are: protect the API keys, keep local data intact, and never let bad input corrupt the portfolio.
 
 ## 1. Threat model (what could go wrong)
 
 | Threat | Impact | Mitigation |
 |---|---|---|
-| API key committed to GitHub | Key abused, quota exhausted | Key never in source; `--dart-define`; `.gitignore`; secret scan before push |
-| API key extracted from the APK | Same as above | Accepted risk for a demo (free key, read-only). Production: proxy through a backend (see §6) |
+| API key committed to GitHub | Key abused, quota exhausted | Keys exist only as Cloudflare Worker secrets (`wrangler secret put`); never in the repo, app, `wrangler.toml` or logs; secret scan before push |
+| API key extracted from the APK / browser Network tab | Same as above | **Mitigated (Step 14):** the app holds no key, only `PROXY_BASE_URL`; the Worker adds keys server-side |
+| Proxy abused as a free data API | Our quota exhausted | Only 4 REST routes + `/ws`, strict param validation, 60 req/min per IP, edge cache, CORS + Origin check (other browser origins get 403), max 50 symbols per WebSocket client |
+| Proxy URL is public | Anyone can call it with curl | Accepted: the limits above cap the damage; it only serves public market data. Without accounts there is no secret the app could prove |
 | Invalid order input (negative qty, huge numbers, text) | Corrupt portfolio | Validate in UI **and** in PortfolioEngine (defense in depth) |
 | Malformed API / WebSocket data | Crash or wrong prices | Defensive JSON parsing; reject non-positive / non-finite prices; try/catch per message |
 | Man-in-the-middle | Fake prices | HTTPS + WSS only; no cleartext traffic allowed |
@@ -16,19 +18,26 @@ PaperTrade handles **no real money, no accounts, and no personal data**. The sec
 
 ## 2. API key handling
 
-1. Run/build with:
+The **app contains no API key** (Step 14). Keys live only in the Cloudflare Worker (`proxy/`).
+
+1. Store the keys as Worker secrets, typed at the prompt (not in shell history or files):
    ```bash
-   flutter run --dart-define=FINNHUB_API_KEY=xxxx
+   cd proxy
+   npx wrangler secret put FINNHUB_API_KEY
+   npx wrangler secret put TWELVE_DATA_API_KEY
    ```
-   Read in code:
+   For `wrangler dev` only: `proxy/.dev.vars` (gitignored).
+2. The Worker adds the key to the upstream URL itself and **never logs** URLs, upstream errors or keys (errors to the client are generic, e.g. "upstream unreachable"). A missing secret answers 503, not a crash.
+3. The app gets only the proxy URL at build time:
+   ```bash
+   flutter run --dart-define=PROXY_BASE_URL=https://papertrade-proxy.<name>.workers.dev
+   ```
    ```dart
-   const finnhubApiKey = String.fromEnvironment('FINNHUB_API_KEY');
+   const proxyBaseUrl = String.fromEnvironment('PROXY_BASE_URL');
    ```
-   If empty → show a clear setup error screen, not a crash.
-2. **Never** hardcode the key, never put it in `pubspec.yaml`, never log it.
-3. Optionally use `--dart-define-from-file=env.json` and add `env.json` to `.gitignore`. Commit an `env.example.json` with a placeholder.
-4. Before every push: `git grep -i "token=\|apikey\|FINNHUB"` must not show a real key.
-5. If a key ever leaks: regenerate it in the Finnhub dashboard immediately.
+   Empty or not a bare `https://host` → the setup error screen, not a crash. It isn't secret, but `env.json` stays gitignored; `env.example.json` has a placeholder.
+4. Before every push: `git grep -iE "token=|apikey|FINNHUB_API_KEY=|TWELVE_DATA_API_KEY="` must not show a real key (only the `wrangler secret put` instructions).
+5. If a key ever leaks: regenerate it in the provider's dashboard, then `wrangler secret put` the new one (takes effect immediately, no app release needed).
 
 `.gitignore` must include:
 ```
@@ -43,12 +52,12 @@ env.json
 - Android: do **not** enable `usesCleartextTraffic`.
 - iOS: no App Transport Security exceptions.
 - Timeouts: REST 10 s. Never retry in a tight loop (exponential backoff).
-- Do not log full request URLs (they contain the token).
+- The app's URLs hold no key (Step 14). The Worker never logs upstream URLs: they contain the key.
 
 ## 4. Input validation
 
 Quantity field:
-- Digits only (`FilteringTextInputFormatter.digitsOnly`), max 7 digits.
+- Digits and one dot only: any edit that doesn't match `^\d{0,7}(\.\d{0,4})?$` (shares) or `^\d{0,9}(\.\d{0,2})?$` (dollars) is rejected. Parsed to int units/cents with string math, never `double`.
 - Must be integer ≥ 1.
 - Buy: `qty * price <= cash`. Sell: `qty <= owned`.
 
@@ -69,9 +78,15 @@ Search field: trim, max 50 chars, URL-encode before sending (`Uri` with `queryPa
 - Write the whole portfolio state in one operation after a successful engine call, so a crash can't leave cash debited without the holding added.
 - Reset account requires a confirmation dialog.
 
-## 7. Production hardening (future, not v1.0)
+## 7. Production hardening
 
-- Move API calls behind a small backend proxy that holds the key; app talks to proxy only.
+Done (Step 14):
+- API calls go through our Cloudflare Worker, which holds the keys; the app talks to the proxy only (https/wss).
+- Proxy: route allowlist + param validation, per-IP rate limit (60/min, approximate: per isolate), Cache API (quote 15 s, market status 60 s, search 1 h, history 5 min / 1 h), CORS limited to localhost and `ALLOWED_ORIGINS` with no wildcard and no credentials, one shared upstream WebSocket with max 50 symbols per client.
+
+Still future:
+- Exact rate limiting (Cloudflare Rate Limiting binding or a Durable Object counter) and a custom domain (the Cache API is only guaranteed on custom domains, not `*.workers.dev`).
+- App attestation (Play Integrity) so only the real app can call the proxy.
 - Certificate pinning for the proxy.
 - Code obfuscation: `flutter build apk --obfuscate --split-debug-info=build/symbols`.
 - Dependency audit: `flutter pub outdated`, review new packages before adding.

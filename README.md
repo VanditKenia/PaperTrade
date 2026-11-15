@@ -1,17 +1,163 @@
-# papertrade
+# PaperTrade
 
-A new Flutter project.
+**A Flutter stock-trading simulator: real, live market prices — virtual money.**
 
-## Getting Started
+Practice buying and selling US stocks and crypto with a $100,000 virtual wallet, and watch your profit and loss move in real time.
 
-This project is a starting point for a Flutter application.
+> ⚠️ **Virtual money only.** PaperTrade has no real money, no broker connection and no payments. Every trade is simulated on your device. Market data is provided by Finnhub and may be delayed.
 
-A few resources to get you started if this is your first Flutter project:
+---
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+## Features
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+- **Live prices** streamed over WebSocket, with a green/red flash on every tick
+- **Search** any US-listed stock by name or symbol, and add it to your **watchlist**
+- **Stock detail** with live price, day change, day stats and a **live chart**
+- **Buy and sell** with market orders at the live price: quantity stepper, Max button, live cost preview and inline validation
+- **Portfolio** with holdings, average cost, and live unrealized P&L, total value and total return
+- **Trade history** with realized P&L on every sell
+- **Offline persistence**: watchlist, cash, holdings and trades survive app restarts
+- **Resilient connection**: offline banner, "Reconnecting…" indicator and automatic reconnect
+- **Market status** chip (open/closed), plus a first-launch guide and **Reset account** in Settings
+- Crypto (`BINANCE:BTCUSDT`) trades 24/7, so live updates can be tested outside US market hours
+
+## Screenshots
+
+| Watchlist | Stock detail | Order sheet | Portfolio |
+|---|---|---|---|
+| ![Watchlist](docs/screenshots/watchlist.png) | ![Stock detail](docs/screenshots/detail.png) | ![Order sheet](docs/screenshots/order.png) | ![Portfolio](docs/screenshots/portfolio.png) |
+
+## Architecture
+
+Layered, feature-first architecture (MVVM with Riverpod). Dependencies point inward only.
+
+```
+UI (screens / widgets)
+   │ watches
+   ▼
+Providers (Riverpod Notifiers — state + view logic, the "ViewModels")
+   │ calls
+   ▼
+Repositories (single source of truth; combine API + cache + storage)
+   │ uses
+   ▼
+Data sources (Finnhub REST client, Finnhub WebSocket, Hive local store)
+
+Domain (models + PortfolioEngine) — pure Dart, used by all layers, depends on nothing
+```
+
+**Live price flow**
+
+```
+Finnhub WebSocket ─▶ proxy relay ──trade msgs──▶ PriceStreamService
+                                     │ parse defensively, keep latest price per symbol
+                                     ▼
+                               throttle (500 ms)
+                                     │ emit one snapshot
+                                     ▼
+                           livePricesProvider
+                           │                │
+                           ▼                ▼
+                 Watchlist rows       Portfolio / Stock detail
+             (only changed rows        (P&L recomputed from
+                  rebuild)               PortfolioEngine)
+```
+
+```
+lib/
+  core/       config, money formatting, theme, throttle
+  domain/     models + portfolio_engine.dart (pure Dart)
+  data/       finnhub_api, price_stream_service, local_store, repositories
+  features/   watchlist, search, stock_detail, portfolio, history, settings
+proxy/        Cloudflare Worker (TypeScript): API keys, REST routes, WebSocket relay
+```
+
+**API key proxy.** The app holds no API key. It calls our Cloudflare Worker (`proxy/`, free plan), which adds the Finnhub / Twelve Data keys server-side, forwards only the four REST calls the app uses (`/quote`, `/search`, `/market-status`, `/history`) with validated params, caches them at the edge, rate-limits per IP, and relays live trades through **one** shared upstream WebSocket held by a Durable Object.
+
+## Tech stack
+
+| Concern | Choice |
+|---|---|
+| Framework | Flutter 3.50 · Dart 3.14 |
+| State management | flutter_riverpod (Notifier / AsyncNotifier) |
+| Local storage | Hive CE (IndexedDB on web, files on Android) |
+| Real-time data | web_socket_channel → proxy relay → Finnhub WebSocket |
+| REST | http → our proxy → Finnhub REST (search, quotes, market status) and Twelve Data (history) |
+| Backend | Cloudflare Workers + Durable Objects (TypeScript, Wrangler, Vitest) |
+| Charts | fl_chart |
+| UI | material_ui, intl |
+| Testing | flutter_test, mocktail, fake_async |
+
+## Key engineering decisions
+
+- **Money is integer cents.** Every balance, cost and P&L is an `int` number of cents. Floating point can't represent money exactly (`0.1 + 0.2 != 0.3`), so prices from the API are converted once with `(price * 100).round()`.
+- **Throttled live updates.** Busy symbols can send dozens of trades per second. Ticks are buffered (latest price per symbol wins) and pushed to the UI at most every 500 ms, and each row watches only its own symbol with `select()`, so one price change rebuilds one row.
+- **Immutable portfolio engine.** `PortfolioEngine` is pure Dart: it takes a state and returns a new state, or throws a typed error (`InsufficientFunds`, `InsufficientShares`, `InvalidQuantity`, `PriceUnavailable`). A trade can never be half-applied, and the engine is tested without Flutter.
+- **Atomic saves.** The whole portfolio (cash, holdings, trades) is written to Hive as one value after the engine succeeds, so a crash can't leave cash deducted without the holding added.
+- **No provider dependency cycles.** Price providers never depend on the portfolio, and the portfolio never reads prices; the fill price is passed in from the order sheet. Anything that needs both (portfolio summary, WebSocket subscriptions) lives in its own provider.
+- **Resilient WebSocket.** Auto-reconnect with exponential backoff (1 s → 30 s), re-subscribing every symbol after a reconnect. Malformed messages are skipped, never crash the stream.
+- **No API key in the app.** Keys are Cloudflare Worker secrets; the app only gets `PROXY_BASE_URL` at build time, so nothing can be pulled out of the APK or the browser's Network tab. The Worker validates every parameter, allows only the routes the app uses, caches responses (quote 15 s … history 1 h), rate-limits per IP and limits CORS to localhost and our web origin.
+- **One upstream WebSocket for everyone.** Free Finnhub keys allow very few socket connections, so a single Durable Object holds one upstream socket, subscribes it to the union of all clients' symbols, unsubscribes when nobody needs one, and sends each client only its own trades.
+
+## Getting started
+
+**1. Get free API keys** at [finnhub.io](https://finnhub.io) and [twelvedata.com](https://twelvedata.com) (history is optional).
+
+**2. Deploy the proxy** (Cloudflare free plan; details and checks in [proxy/README.md](proxy/README.md)):
+
+```bash
+cd proxy
+npm install
+npx wrangler login
+npx wrangler secret put FINNHUB_API_KEY
+npx wrangler secret put TWELVE_DATA_API_KEY
+npx wrangler deploy        # prints https://papertrade-proxy.<subdomain>.workers.dev
+cd ..
+```
+
+**3. Point the app at it** (gitignored config file):
+
+```bash
+cp env.example.json env.json        # Windows: copy env.example.json env.json
+```
+
+```json
+{ "PROXY_BASE_URL": "https://papertrade-proxy.<subdomain>.workers.dev" }
+```
+
+**4. Run the app:**
+
+```bash
+flutter pub get
+flutter run -d chrome --dart-define-from-file=env.json     # web
+flutter run --dart-define-from-file=env.json               # Android device / emulator
+```
+
+US markets trade roughly 8:00 PM–2:30 AM IST on weekdays. Outside those hours, stock prices stay at the last close; use `BINANCE:BTCUSDT` to see live ticks.
+
+## Tests
+
+```bash
+flutter test       # 287 tests
+flutter analyze    # no issues
+cd proxy && npm test   # 44 Worker tests (Vitest)
+```
+
+Covered: the portfolio engine (buy/sell, weighted average cost, realized and unrealized P&L, a full worked example), money formatting, the throttle, WebSocket message parsing, the Finnhub client, Hive persistence across a simulated restart, providers (including a no-dependency-cycle test), and widget tests for the order sheet, portfolio and app shell. Tests never touch the real network or socket.
+
+## Future scope
+
+- Limit and stop-loss orders, price alerts
+- Historical candles (1D / 1M) and technical indicators (SMA, EMA, RSI)
+- Indian markets (NSE/BSE) through a broker API behind a backend proxy
+- Accounts and cloud sync (e.g. Supabase Auth + Postgres with row-level security)
+- Native iOS build and release on a Mac
+- App attestation so only the real app can call the proxy; exact (non per-isolate) rate limiting
+
+## Docs
+
+Product and technical specs live in [`docs/`](docs/): PRD, TRD, architecture, app flow, UI/UX, API spec, security, testing, roadmap and progress log.
+
+---
+
+Built by [Vandit Kenia](https://github.com/VanditKenia) with Claude Code as an AI coding assistant.

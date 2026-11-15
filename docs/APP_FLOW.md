@@ -23,10 +23,10 @@ Bottom nav tabs: **Watchlist · Portfolio · History · Settings**
 
 ## 2. First launch
 
-1. App opens → Hive initializes → no saved data found.
-2. Create wallet with **$100,000.00** virtual cash.
+1. App opens → Hive initializes → no saved portfolio found.
+2. **Choose your starting balance** screen: presets $1K / $10K / $50K / $100K / $1M or a custom whole-dollar amount ($100 – $10,000,000). **Start trading** creates the wallet with that cash, saves it, and opens the Watchlist. (Not shown again once a portfolio is saved; existing users are migrated at $100,000.)
 3. Seed watchlist with defaults: `AAPL, MSFT, GOOGL, AMZN, TSLA, BINANCE:BTCUSDT` (BTC so live ticks work 24/7).
-4. Show one-time banner on Watchlist: *"You have $100,000 virtual cash. Prices are real, money is not. Tap any stock to start trading."*
+4. Show one-time banner on Watchlist: *"You have $X virtual cash. Prices are real, money is not. Tap any stock to start trading."* ($X = the chosen starting balance)
 5. WebSocket connects and subscribes to watchlist symbols.
 
 ## 3. Returning launch
@@ -66,10 +66,18 @@ Bottom nav tabs: **Watchlist · Portfolio · History · Settings**
 5. Holding updates to 3 shares; selling all removes it from Portfolio
 
 ### J5 — Review trades
-History tab → reverse-chronological list: BUY/SELL badge, symbol, qty @ price, time, realized P&L for sells. Empty state: "No trades yet."
+History tab → reverse-chronological list: BUY/SELL badge, symbol, qty @ price, time · how it filled (Market / Limit / Stop-loss), realized P&L for sells. Empty state: "No trades yet."
+
+### J7 — Limit and stop-loss orders
+1. Stock Detail → **Buy** → order type **Limit** (sell sheet also offers **Stop-loss**)
+2. Price field pre-filled with the current price; edit it (e.g. $180.00). Note: "Buys when the price is at or below the limit. Orders only execute while the app is open."
+3. Sheet shows **Cash reserved** (qty × limit) and cash available after it → **Place Buy order**
+4. Toast "Limit buy 5 AAPL @ $180.00 placed" → Portfolio shows it under **Open orders** ("Reserves $900.00") with ✕ Cancel
+5. While the app is open, the first live tick at or below $180 fills it at that tick's price; it leaves Open orders, the holding appears, History shows "· Limit"
+6. ✕ Cancel → "Order cancelled", reservation released
 
 ### J6 — Reset account
-Settings → **Reset account** → confirm dialog ("This deletes all holdings and trades and resets cash to $100,000") → reset → back to Watchlist.
+Settings → **Reset account** → dialog: same presets + custom field, pre-filled with the current starting balance, and "This deletes all holdings and trades." → **Reset** (disabled while the amount is invalid) → cash = new starting balance, no holdings, no trades.
 
 ## 5. Edge flows
 
@@ -81,4 +89,7 @@ Settings → **Reset account** → confirm dialog ("This deletes all holdings an
 | Price unknown (new symbol, no quote yet) | Buy/Sell disabled with "Waiting for price…" |
 | Search returns nothing | "No results for 'xyz'" |
 | API rate limit hit (HTTP 429) | Show "Too many requests, try again shortly"; back off 60 s |
-| Remove watchlist item | Swipe left → remove → unsubscribe from WS (unless it's a holding) |
+| Remove watchlist item | Swipe left → remove → unsubscribe from WS (unless it's a holding or has an open order) |
+| App closed with open orders | Nothing fills while closed; orders stay open and are checked again on the next live tick after reopening |
+| Spending reserved cash/shares | Market buy/sell and new orders use *available* amounts: "Not enough cash" / "Only 2 shares available (rest in open orders)" |
+| Cancel after it filled | "Order is no longer open" |
