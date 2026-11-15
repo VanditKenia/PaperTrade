@@ -125,6 +125,8 @@ cp env.example.json env.json        # Windows: copy env.example.json env.json
 { "PROXY_BASE_URL": "https://papertrade-proxy.<subdomain>.workers.dev" }
 ```
 
+For example, this project's deployed proxy is `https://papertrade-proxy.vanditkenia.workers.dev`. Use your own deployment when you fork it: the proxy's rate limit and quotas are shared by everyone who calls it.
+
 **4. Run the app:**
 
 ```bash

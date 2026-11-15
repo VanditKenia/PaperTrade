@@ -26,7 +26,7 @@ If code and docs disagree, ask before changing either.
 - `domain/` is pure Dart — no `package:flutter` imports.
 - UI never calls `http`, WebSocket, or Hive directly — go through providers → repositories.
 - PortfolioEngine is immutable: input state → new state or typed error.
-- **Never hardcode or log the API key.** Read it with `String.fromEnvironment('FINNHUB_API_KEY')`.
+- **The app must never contain API keys; keys live only in Cloudflare Worker secrets** (`proxy/`, set with `npx wrangler secret put`). The app only knows the proxy URL: read it with `String.fromEnvironment('PROXY_BASE_URL')`; empty or not `https://` → setup error screen. Never log upstream URLs in the Worker.
 - Only `https://` / `wss://`.
 - Build URLs with `Uri.https(...)` + `queryParameters`, never string concatenation.
 - Parse all network data defensively; a bad message must never crash the app or the stream.
@@ -47,7 +47,8 @@ If code and docs disagree, ask before changing either.
 
 ```bash
 flutter pub get
-flutter run --dart-define=FINNHUB_API_KEY=$FINNHUB_API_KEY
+flutter run --dart-define-from-file=env.json           # env.json: {"PROXY_BASE_URL": "https://…workers.dev"}
+flutter run -d chrome --dart-define-from-file=env.json
 flutter test
 flutter analyze
 ```
