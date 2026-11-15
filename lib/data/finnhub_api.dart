@@ -14,15 +14,17 @@ import 'api_errors.dart';
 final finnhubApiProvider = Provider<FinnhubApi>((ref) {
   final client = http.Client();
   ref.onDispose(client.close);
-  return FinnhubApi(client, finnhubApiKey);
+  // Only built once the app is past the setup screen, so a proxy exists.
+  return FinnhubApi(client, proxyUri!);
 });
 
-/// Finnhub REST client (API_SPEC.md §2). Throws only [ApiError]s.
+/// Market data via our proxy's Finnhub routes (API_SPEC.md §2). The proxy
+/// adds the key, so nothing here is secret. Throws only [ApiError]s.
 class FinnhubApi {
-  FinnhubApi(this._client, this._apiKey, {this._isWeb = kIsWeb});
+  FinnhubApi(this._client, this._proxy, {this._isWeb = kIsWeb});
 
   final http.Client _client;
-  final String _apiKey;
+  final Uri _proxy; // https://host of the Worker
   final bool _isWeb;
 
   static const _webNetworkMessage = "Couldn't reach market data. Retry";
@@ -32,9 +34,9 @@ class FinnhubApi {
   Future<List<Stock>> search(String query) async {
     final q = query.trim();
     if (q.isEmpty) return const [];
-    final json = await _get('/api/v1/search', {
+    // The proxy fixes exchange=US itself.
+    final json = await _get('/search', {
       'q': q.length > 50 ? q.substring(0, 50) : q,
-      'exchange': 'US',
     });
     final result = json['result'];
     if (result is! List) return const [];
@@ -52,7 +54,7 @@ class FinnhubApi {
   }
 
   Future<Quote> quote(String symbol) async {
-    final json = await _get('/api/v1/quote', {'symbol': symbol});
+    final json = await _get('/quote', {'symbol': symbol});
     final current = json['c'];
     // Finnhub answers an unknown symbol with all zeros (or nulls), not a 404.
     if (current is! num || !current.isFinite || current <= 0) {
@@ -79,7 +81,7 @@ class FinnhubApi {
 
   /// Whether the US market is open now (API_SPEC.md §2.4).
   Future<bool> isMarketOpen() async {
-    final json = await _get('/api/v1/stock/market-status', {'exchange': 'US'});
+    final json = await _get('/market-status', const {});
     final open = json['isOpen'];
     if (open is! bool) throw const UnknownError();
     return open;
@@ -89,10 +91,8 @@ class FinnhubApi {
     String path,
     Map<String, String> params,
   ) async {
-    // Key as a query param, not a header: a custom header makes browsers
-    // send a CORS preflight, which Finnhub rejects. The URL now holds the
-    // key, so only ever log `path`, never `uri`.
-    final uri = Uri.https('finnhub.io', path, {...params, 'token': _apiKey});
+    // No custom headers: on web they would add a CORS preflight per call.
+    final uri = Uri.https(_proxy.authority, path, params);
     final http.Response res;
     try {
       res = await _client.get(uri).timeout(_timeout);
@@ -129,11 +129,6 @@ class FinnhubApi {
   }
 
   void _log(String message) {
-    if (!kDebugMode) return;
-    // Belt and braces: the message shouldn't contain the URL, but scrub the
-    // key in case a platform includes it.
-    debugPrint(
-      _apiKey.isEmpty ? message : message.replaceAll(_apiKey, '<token>'),
-    );
+    if (kDebugMode) debugPrint(message);
   }
 }

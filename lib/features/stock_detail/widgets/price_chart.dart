@@ -3,67 +3,94 @@ import 'dart:math';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../../core/money.dart';
 import '../../../core/theme.dart';
+import '../../../domain/models/price_point.dart';
 
-/// Simple line of prices in arrival order. The x axis is the point index,
-/// not time: ticks arrive irregularly, and an even spacing reads better.
+/// Line of money values (prices, or portfolio value on Stats) with a
+/// touch/drag crosshair. The x axis is the point index, not time: markets
+/// close overnight and on weekends, and spacing by time would leave big
+/// empty gaps (and live ticks arrive irregularly).
 class PriceChart extends StatelessWidget {
   const PriceChart({
     super.key,
-    required this.pointsCents,
+    required this.points,
     required this.color,
-    this.prevCloseCents = 0,
+    required this.formatTime,
   });
 
-  final List<int> pointsCents;
+  final List<PricePoint> points;
   final Color color;
-  final int prevCloseCents; // 0 = unknown, no reference line
+  final String Function(DateTime) formatTime; // tooltip time label
 
   @override
   Widget build(BuildContext context) {
     // Doubles are fine here: they're only pixel positions, not money.
     final spots = [
-      for (var i = 0; i < pointsCents.length; i++)
-        FlSpot(i.toDouble(), pointsCents[i] / 100),
+      for (var i = 0; i < points.length; i++)
+        FlSpot(i.toDouble(), points[i].priceCents / 100),
     ];
-    final low = pointsCents.reduce(min) / 100;
-    final high = pointsCents.reduce(max) / 100;
+    final cents = points.map((p) => p.priceCents);
+    final low = cents.reduce(min) / 100;
+    final high = cents.reduce(max) / 100;
     // Headroom above and below; also stops a flat line (low == high) from
     // collapsing the axis to zero height.
     final pad = max((high - low) * 0.1, 0.01);
-    final minY = low - pad;
-    final maxY = high + pad;
-    final prevClose = prevCloseCents / 100;
 
     return LineChart(
       LineChartData(
-        minY: minY,
-        maxY: maxY,
-        // Prev close is a reference, not data: skip it when it's outside the
-        // zoomed range rather than stretching the axis to fit it.
-        extraLinesData: ExtraLinesData(
-          horizontalLines: [
-            if (prevCloseCents > 0 && prevClose >= minY && prevClose <= maxY)
-              HorizontalLine(
-                y: prevClose,
-                color: AppColors.textSecondary,
-                strokeWidth: 1,
-                dashArray: const [4, 4],
-              ),
-          ],
-        ),
+        minY: low - pad,
+        maxY: high + pad,
         titlesData: const FlTitlesData(show: false),
         gridData: const FlGridData(show: false),
         borderData: FlBorderData(show: false),
-        lineTouchData: const LineTouchData(enabled: false),
+        lineTouchData: LineTouchData(
+          getTouchedSpotIndicator: (_, indexes) => [
+            for (final _ in indexes)
+              TouchedSpotIndicatorData(
+                const FlLine(
+                  color: AppColors.textSecondary,
+                  strokeWidth: 1,
+                  dashArray: [4, 4],
+                ),
+                FlDotData(
+                  getDotPainter: (_, _, _, _) =>
+                      FlDotCirclePainter(radius: 4, color: color),
+                ),
+              ),
+          ],
+          touchTooltipData: LineTouchTooltipData(
+            getTooltipColor: (_) => AppColors.surfaceAlt,
+            fitInsideHorizontally: true,
+            fitInsideVertically: true,
+            getTooltipItems: (touched) => [
+              for (final spot in touched)
+                LineTooltipItem(
+                  // Money comes from the int cents, not the double y.
+                  '${formatCents(points[spot.spotIndex].priceCents)}\n',
+                  const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                    fontFeatures: [FontFeature.tabularFigures()],
+                  ),
+                  children: [
+                    TextSpan(
+                      text: formatTime(points[spot.spotIndex].time),
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+        ),
         lineBarsData: [
           LineChartBarData(
             spots: spots,
             color: color,
             barWidth: 2,
-            isCurved: true,
-            // Without this, curves can overshoot past the real high/low.
-            preventCurveOverShooting: true,
             dotData: const FlDotData(show: false),
             belowBarData: BarAreaData(
               show: true,

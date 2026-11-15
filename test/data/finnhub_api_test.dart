@@ -7,12 +7,14 @@ import 'package:http/testing.dart';
 import 'package:papertrade/data/api_errors.dart';
 import 'package:papertrade/data/finnhub_api.dart';
 
+import '../fakes.dart';
+
 FinnhubApi apiReturning(Object body, {int status = 200}) => FinnhubApi(
   MockClient(
     (_) async =>
         http.Response(body is String ? body : jsonEncode(body), status),
   ),
-  'test-key',
+  testProxy,
 );
 
 void main() {
@@ -45,24 +47,26 @@ void main() {
       );
     });
 
-    test('sends symbol and key as query params, no custom headers', () async {
-      late http.Request sent;
-      final api = FinnhubApi(
-        MockClient((req) async {
-          sent = req;
-          return http.Response('{"c": 1}', 200);
-        }),
-        'test-key',
-      );
-      await api.quote('BINANCE:BTCUSDT');
-      expect(sent.url.scheme, 'https');
-      expect(sent.url.queryParameters, {
-        'symbol': 'BINANCE:BTCUSDT',
-        'token': 'test-key',
-      });
-      // Any custom header triggers a CORS preflight on web.
-      expect(sent.headers, isEmpty);
-    });
+    test(
+      'calls the proxy over https: symbol only, no key or headers',
+      () async {
+        late http.Request sent;
+        final api = FinnhubApi(
+          MockClient((req) async {
+            sent = req;
+            return http.Response('{"c": 1}', 200);
+          }),
+          testProxy,
+        );
+        await api.quote('BINANCE:BTCUSDT');
+        expect(sent.url.scheme, 'https');
+        expect(sent.url.host, 'proxy.test');
+        expect(sent.url.path, '/quote');
+        expect(sent.url.queryParameters, {'symbol': 'BINANCE:BTCUSDT'});
+        // Any custom header triggers a CORS preflight on web.
+        expect(sent.headers, isEmpty);
+      },
+    );
   });
 
   group('search', () {
@@ -85,7 +89,7 @@ void main() {
     test('blank query makes no request', () async {
       final api = FinnhubApi(
         MockClient((_) async => fail('should not call the API')),
-        'k',
+        testProxy,
       );
       expect(await api.search('   '), isEmpty);
     });
@@ -124,7 +128,7 @@ void main() {
         (req) async =>
             throw http.ClientException('Failed to fetch ${req.url}', req.url),
       ),
-      'secret-key',
+      testProxy,
       isWeb: isWeb,
     );
 
@@ -154,7 +158,7 @@ void main() {
       );
     });
 
-    test('failure is logged with the path but never the token', () async {
+    test('failure is logged with the path', () async {
       final logs = <String>[];
       final original = debugPrint;
       debugPrint = (message, {wrapWidth}) => logs.add(message ?? '');
@@ -165,8 +169,7 @@ void main() {
         throwsA(isA<NetworkError>()),
       );
       expect(logs, hasLength(1));
-      expect(logs.single, startsWith('/api/v1/quote failed:'));
-      expect(logs.single, isNot(contains('secret-key')));
+      expect(logs.single, startsWith('/quote failed:'));
     });
   });
 

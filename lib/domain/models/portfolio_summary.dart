@@ -9,13 +9,15 @@ class PortfolioSummary {
     required this.portfolioValueCents,
     required this.totalReturnCents,
     required this.totalReturnPercent,
+    required this.startingCashCents,
   });
 
   final int cashCents;
-  final int investedCents; // Σ qty * avgCost — what the holdings cost
-  final int marketValueCents; // Σ qty * livePrice
-  final int unrealizedPnlCents; // Σ (livePrice - avgCost) * qty
+  final int investedCents; // Σ cost basis — what the holdings cost
+  final int marketValueCents; // Σ cost(qty, livePrice)
+  final int unrealizedPnlCents; // marketValue - invested
   final int portfolioValueCents; // cash + marketValue
   final int totalReturnCents; // portfolioValue - startingCash
   final double totalReturnPercent;
+  final int startingCashCents;
 }

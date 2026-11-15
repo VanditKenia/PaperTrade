@@ -11,7 +11,8 @@ import '../core/money.dart';
 import '../core/throttle.dart';
 
 final priceStreamServiceProvider = Provider<PriceStreamService>((ref) {
-  final service = PriceStreamService(finnhubApiKey);
+  // Only built once the app is past the setup screen, so a proxy exists.
+  final service = PriceStreamService(proxyUri!);
   ref.onDispose(service.dispose);
   return service;
 });
@@ -19,15 +20,16 @@ final priceStreamServiceProvider = Provider<PriceStreamService>((ref) {
 /// What the UI shows about the socket (APP_FLOW.md §5).
 enum ConnectionStatus { connecting, live, reconnecting, offline }
 
-/// Live trade prices from the Finnhub WebSocket (API_SPEC.md §3).
+/// Live trade prices from the proxy's WebSocket relay, which speaks the
+/// Finnhub protocol (API_SPEC.md §3).
 ///
 /// Keeps the latest price per symbol and publishes snapshots of all of them,
 /// throttled to one every 500 ms. Reconnects with exponential backoff.
 class PriceStreamService {
-  PriceStreamService(this._apiKey, {WebSocketChannel Function(Uri)? connect})
+  PriceStreamService(this._proxy, {WebSocketChannel Function(Uri)? connect})
     : _connect = connect ?? WebSocketChannel.connect;
 
-  final String _apiKey;
+  final Uri _proxy; // https://host of the Worker
   // WebSocketChannel.connect picks the browser or dart:io implementation,
   // so the same code runs on web and Android.
   final WebSocketChannel Function(Uri) _connect;
@@ -108,12 +110,8 @@ class PriceStreamService {
   }
 
   Future<void> _open() async {
-    // Contains the token: never log this URI.
-    final uri = Uri(
-      scheme: 'wss',
-      host: 'ws.finnhub.io',
-      queryParameters: {'token': _apiKey},
-    );
+    // Same host as the REST proxy, wss only (SECURITY.md §3).
+    final uri = _proxy.replace(scheme: 'wss', path: '/ws');
     final channel = _connect(uri);
     _channel = channel;
     _sub = channel.stream.listen(

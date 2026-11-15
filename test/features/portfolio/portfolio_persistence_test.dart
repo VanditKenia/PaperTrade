@@ -6,6 +6,7 @@ import 'package:hive_ce/hive_ce.dart';
 import 'package:papertrade/data/local_store.dart';
 import 'package:papertrade/domain/models/trade.dart';
 import 'package:papertrade/features/portfolio/portfolio_provider.dart';
+import 'package:papertrade/domain/quantity.dart';
 
 void main() {
   late Directory dir;
@@ -31,8 +32,8 @@ void main() {
   test('trades made through the provider survive a restart', () async {
     var app = await launch();
     final portfolio = app.read(portfolioProvider.notifier);
-    await portfolio.buy('AAPL', 5, priceCents: 18942);
-    await portfolio.sell('AAPL', 2, priceCents: 18942);
+    await portfolio.buy('AAPL', 5 * unitsPerShare, priceCents: 18942);
+    await portfolio.sell('AAPL', 2 * unitsPerShare, priceCents: 18942);
     final before = app.read(portfolioProvider);
 
     app.dispose();
@@ -41,7 +42,7 @@ void main() {
     final after = app.read(portfolioProvider);
 
     expect(after.wallet.cashCents, before.wallet.cashCents);
-    expect(after.holdings['AAPL']!.quantity, 3);
+    expect(after.holdings['AAPL']!.quantity, 3 * unitsPerShare);
     expect(after.holdings['AAPL']!.avgCostCents, 18942);
     expect(after.trades.map((t) => t.side), [TradeSide.buy, TradeSide.sell]);
     expect(after.trades.map((t) => t.id), before.trades.map((t) => t.id));

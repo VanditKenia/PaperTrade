@@ -72,11 +72,13 @@ class _TradeRow extends StatelessWidget {
         ),
       ),
       title: Text(
-        '${trade.quantity} ${trade.symbol} @ ${formatCents(trade.priceCents)}',
+        '${formatShares(trade.quantity)} ${trade.symbol} @ ${formatCents(trade.priceCents)}',
         style: text.bodyLarge?.merge(tabularFigures),
       ),
+      // How it filled: "10:32 AM · Market" / "· Limit" / "· Stop-loss".
       subtitle: Text(
-        DateFormat.jm().format(trade.executedAt.toLocal()),
+        '${DateFormat.jm().format(trade.executedAt.toLocal())} · '
+        '${_fillLabel(trade.orderType)}',
         style: text.labelMedium?.copyWith(color: AppColors.textSecondary),
       ),
       trailing: pnl == null
@@ -121,3 +123,9 @@ class _EmptyState extends ConsumerWidget {
     );
   }
 }
+
+String _fillLabel(OrderType type) => switch (type) {
+  OrderType.market => 'Market',
+  OrderType.limit => 'Limit',
+  OrderType.stopLoss => 'Stop-loss',
+};

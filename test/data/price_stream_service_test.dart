@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:papertrade/data/price_stream_service.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import '../fakes.dart';
+
 /// In-memory stand-in for a WebSocket: tests push server messages into
 /// [server] and read what the app sent from [sent].
 class FakeChannel extends Fake implements WebSocketChannel {
@@ -104,7 +106,7 @@ void main() {
       channels = [];
       uris = [];
       service = PriceStreamService(
-        'secret',
+        testProxy,
         connect: (uri) {
           uris.add(uri);
           final channel = FakeChannel();
@@ -114,13 +116,15 @@ void main() {
       );
     });
 
-    test('connects to wss with the token and subscribes once open', () {
+    test('connects to the proxy relay over wss and subscribes once open', () {
       fakeAsync((time) {
         service
           ..setSymbols(['AAPL', 'MSFT'])
           ..start();
         expect(uris.single.scheme, 'wss');
-        expect(uris.single.queryParameters['token'], 'secret');
+        expect(uris.single.host, 'proxy.test');
+        expect(uris.single.path, '/ws');
+        expect(uris.single.hasQuery, isFalse); // no key in the app
         expect(channels.single.sent, isEmpty); // not open yet
 
         channels.single.open();

@@ -1,8 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../core/money.dart';
 import '../../core/theme.dart';
 import '../../domain/models/stock.dart';
+import '../portfolio/portfolio_provider.dart';
 import '../search/search_screen.dart';
 import 'watchlist_provider.dart';
 import 'widgets/market_status_bar.dart';
@@ -35,6 +37,9 @@ class WatchlistScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final stocks = ref.watch(watchlistProvider);
     final showIntro = ref.watch(showIntroProvider);
+    final startingCash = ref.watch(
+      portfolioProvider.select((p) => p.startingCashCents),
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -53,9 +58,9 @@ class WatchlistScreen extends ConsumerWidget {
           const MarketStatusBar(),
           if (showIntro)
             MaterialBanner(
-              content: const Text(
-                'You have \$100,000 virtual cash. Prices are real, money is '
-                'not. Tap any stock to start trading.',
+              content: Text(
+                'You have ${formatDollars(startingCash)} virtual cash. Prices '
+                'are real, money is not. Tap any stock to start trading.',
               ),
               actions: [
                 TextButton(

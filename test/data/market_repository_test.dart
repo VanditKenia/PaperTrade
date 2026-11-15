@@ -5,6 +5,8 @@ import 'package:papertrade/data/api_errors.dart';
 import 'package:papertrade/data/finnhub_api.dart';
 import 'package:papertrade/data/market_repository.dart';
 
+import '../fakes.dart';
+
 void main() {
   late int calls;
   late int status;
@@ -20,7 +22,7 @@ void main() {
         calls++;
         return http.Response('{"c": 100}', status);
       }),
-      'k',
+      testProxy,
     );
     repo = MarketRepository(api, clock: () => now);
   });

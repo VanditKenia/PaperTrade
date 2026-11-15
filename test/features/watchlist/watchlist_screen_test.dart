@@ -6,11 +6,14 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:papertrade/data/finnhub_api.dart';
+import 'package:papertrade/data/price_stream_service.dart';
+import 'package:papertrade/data/twelve_data_api.dart';
 import 'package:papertrade/domain/models/stock.dart';
 import 'package:papertrade/features/stock_detail/stock_detail_screen.dart';
 import 'package:papertrade/features/watchlist/watchlist_provider.dart';
 import 'package:papertrade/features/watchlist/watchlist_screen.dart';
 import 'package:papertrade/data/portfolio_repository.dart';
+import 'package:papertrade/data/alert_repository.dart';
 
 import '../../fakes.dart';
 
@@ -23,8 +26,23 @@ Widget app(
     watchlistProvider.overrideWithBuild((_, _) => watchlist),
     showIntroProvider.overrideWithBuild((_, _) => false),
     portfolioRepositoryProvider.overrideWithValue(FakePortfolioRepository()),
+    alertRepositoryProvider.overrideWithValue(FakeAlertRepository()),
     // Never open a real WebSocket in tests.
     livePricesProvider.overrideWith((_) => live ?? const Stream.empty()),
+    // Never started, so no socket; tests have no PROXY_BASE_URL anyway.
+    priceStreamServiceProvider.overrideWithValue(
+      PriceStreamService(
+        testProxy,
+        connect: (_) => throw StateError('no socket'),
+      ),
+    ),
+    // The detail screen asks for history; a key-less proxy answers 503.
+    twelveDataApiProvider.overrideWithValue(
+      TwelveDataApi(
+        MockClient((_) async => http.Response('{}', 503)),
+        testProxy,
+      ),
+    ),
     finnhubApiProvider.overrideWithValue(
       FinnhubApi(
         MockClient(
@@ -33,7 +51,7 @@ Widget app(
             status,
           ),
         ),
-        'k',
+        testProxy,
       ),
     ),
   ],
@@ -62,7 +80,10 @@ void main() {
       app(const [Stock(symbol: 'AAPL', name: 'Apple Inc')], status: 401),
     );
     await tester.pumpAndSettle();
-    expect(find.text('API key invalid — check configuration'), findsOneWidget);
+    expect(
+      find.text('Market data access denied — check configuration'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('live tick replaces the quote price and flashes for 300 ms', (

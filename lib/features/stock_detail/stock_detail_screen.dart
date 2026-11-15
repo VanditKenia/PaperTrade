@@ -8,12 +8,14 @@ import '../../data/api_errors.dart';
 import '../../domain/models/quote.dart';
 import '../../domain/models/stock.dart';
 import '../../domain/models/trade.dart';
+import '../../domain/portfolio_engine.dart';
+import '../alerts/widgets/alert_sheet.dart';
+import '../alerts/widgets/alerts_list.dart';
 import '../portfolio/portfolio_provider.dart';
 import '../watchlist/watchlist_provider.dart';
 import '../watchlist/widgets/offline_banner.dart';
-import 'stock_detail_provider.dart';
 import 'widgets/order_sheet.dart';
-import 'widgets/price_chart.dart';
+import 'widgets/range_chart.dart';
 
 class StockDetailScreen extends ConsumerWidget {
   const StockDetailScreen({super.key, required this.stock});
@@ -26,7 +28,6 @@ class StockDetailScreen extends ConsumerWidget {
     final symbol = stock.symbol;
     final quote = ref.watch(quoteProvider(symbol));
     final live = ref.watch(livePricesProvider.select((p) => p.value?[symbol]));
-    final points = ref.watch(chartPointsProvider(symbol)).visible;
     final watched = ref.watch(
       watchlistProvider.select((l) => l.any((s) => s.symbol == symbol)),
     );
@@ -37,8 +38,6 @@ class StockDetailScreen extends ConsumerWidget {
 
     final q = quote.value;
     final price = live ?? q?.currentCents;
-    final prevClose = q?.prevCloseCents ?? 0;
-    final change = price == null || prevClose == 0 ? 0 : price - prevClose;
     final secondary = text.labelMedium?.copyWith(
       color: AppColors.textSecondary,
     );
@@ -72,38 +71,12 @@ class StockDetailScreen extends ConsumerWidget {
                   style: text.displaySmall,
                   alignment: Alignment.centerLeft,
                 ),
-                if (price != null && prevClose > 0)
-                  AnimatedNumber(
-                    '${formatChange(change, prevClose)} today',
-                    style: text.bodyLarge?.copyWith(color: changeColor(change)),
-                    alignment: Alignment.centerLeft,
-                  ),
                 if (price != null && marketClosed)
                   Text(
                     'Market closed · last price',
                     style: text.labelMedium?.copyWith(color: AppColors.warning),
                   ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  height: 200,
-                  child: points.isEmpty
-                      ? Center(
-                          child: quote.isLoading
-                              ? const CircularProgressIndicator()
-                              : Text('Waiting for price…', style: secondary),
-                        )
-                      : PriceChart(
-                          pointsCents: points,
-                          prevCloseCents: prevClose,
-                          // Green/red by direction on the day, not the last tick.
-                          color: change < 0 ? AppColors.loss : AppColors.gain,
-                        ),
-                ),
-                const SizedBox(height: 12),
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Chip(label: Text('Live')),
-                ),
+                RangeChart(symbol: symbol),
                 const SizedBox(height: 16),
                 quote.when(
                   data: (q) => _DayStats(q),
@@ -112,6 +85,23 @@ class StockDetailScreen extends ConsumerWidget {
                 ),
                 const Divider(height: 32),
                 _Position(symbol: symbol, priceCents: price),
+                const Divider(height: 32),
+                Row(
+                  children: [
+                    Text('Price alerts', style: text.titleMedium),
+                    const Spacer(),
+                    TextButton.icon(
+                      icon: const Icon(Icons.add_alert_outlined),
+                      label: const Text('Add alert'),
+                      onPressed: () => showAlertSheet(
+                        context,
+                        symbol: symbol,
+                        priceCents: price,
+                      ),
+                    ),
+                  ],
+                ),
+                AlertsList(symbol: symbol),
               ],
             ),
           ),
@@ -180,16 +170,17 @@ class _Position extends ConsumerWidget {
         style: text.bodyLarge,
       );
     }
-    final qty = holding.quantity;
     final price = priceCents;
-    final pnl = price == null ? null : (price - holding.avgCostCents) * qty;
+    final pnl = price == null
+        ? null
+        : PortfolioEngine.unrealizedPnl(holding, price);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: 4,
       children: [
         Text(
-          'Your position: ${formatQuantity(symbol, qty)}',
+          'Your position: ${formatQuantity(symbol, holding.quantity)}',
           style: text.bodyLarge,
         ),
         Text.rich(

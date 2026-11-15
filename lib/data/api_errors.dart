@@ -11,7 +11,9 @@ class NetworkError extends ApiError {
 }
 
 class AuthError extends ApiError {
-  const AuthError() : super('API key invalid — check configuration');
+  // 401/403: the proxy refused us (origin not allowed) or its key was
+  // rejected upstream. Either way it's configuration, not the user.
+  const AuthError() : super('Market data access denied — check configuration');
 }
 
 class RateLimitError extends ApiError {
@@ -22,6 +24,11 @@ class RateLimitError extends ApiError {
 // PriceUnavailable; this one means the API had no price for the symbol.
 class PriceUnavailableError extends ApiError {
   const PriceUnavailableError() : super('Price unavailable for this symbol');
+}
+
+/// The proxy has no Twelve Data key, or the symbol isn't on the free tier.
+class HistoryUnavailableError extends ApiError {
+  const HistoryUnavailableError() : super('History unavailable');
 }
 
 class UnknownError extends ApiError {

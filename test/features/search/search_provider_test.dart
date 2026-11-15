@@ -5,6 +5,8 @@ import 'package:http/testing.dart';
 import 'package:papertrade/data/finnhub_api.dart';
 import 'package:papertrade/features/search/search_provider.dart';
 
+import '../../fakes.dart';
+
 void main() {
   test('debounces typing into a single search for the final text', () async {
     final queries = <String?>[];
@@ -20,7 +22,7 @@ void main() {
                 200,
               );
             }),
-            'k',
+            testProxy,
           ),
         ),
       ],

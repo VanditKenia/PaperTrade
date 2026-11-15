@@ -2,7 +2,8 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../core/theme.dart';
 
-/// Shown instead of the app when FINNHUB_API_KEY was not passed at build time.
+/// Shown instead of the app when PROXY_BASE_URL is missing or not a bare
+/// https URL. The app has no API keys; they live in the proxy (proxy/).
 class SetupErrorScreen extends StatelessWidget {
   const SetupErrorScreen({super.key});
 
@@ -19,22 +20,24 @@ class SetupErrorScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.key_off, size: 48, color: AppColors.warning),
+              const Icon(Icons.cloud_off, size: 48, color: AppColors.warning),
               const SizedBox(height: 16),
-              Text('API key missing', style: text.titleLarge),
+              Text('Proxy URL missing', style: text.titleLarge),
               const SizedBox(height: 8),
               Text(
-                'PaperTrade needs a free Finnhub API key (finnhub.io) to load '
-                'market data. Run the app with:',
+                'PaperTrade loads market data through its Cloudflare Worker '
+                '(see proxy/README.md). Run the app with the Worker URL:',
                 style: text.bodyLarge?.merge(secondary),
               ),
               const SizedBox(height: 16),
               const _Command(
-                'flutter run --dart-define=FINNHUB_API_KEY=your_key',
+                'flutter run --dart-define=PROXY_BASE_URL='
+                'https://papertrade-proxy.<name>.workers.dev',
               ),
               const SizedBox(height: 16),
               Text(
-                'Or copy env.example.json to env.json, add your key, and run:',
+                'Or copy env.example.json to env.json, set PROXY_BASE_URL '
+                '(https only), and run:',
                 style: text.bodyLarge?.merge(secondary),
               ),
               const SizedBox(height: 16),

@@ -8,9 +8,11 @@ import 'package:http/testing.dart';
 import 'package:papertrade/data/finnhub_api.dart';
 import 'package:papertrade/data/portfolio_repository.dart';
 import 'package:papertrade/data/price_stream_service.dart';
+import 'package:papertrade/features/portfolio/order_matcher_provider.dart';
 import 'package:papertrade/features/portfolio/portfolio_provider.dart';
 import 'package:papertrade/features/watchlist/price_subscriptions_provider.dart';
 import 'package:papertrade/features/watchlist/watchlist_provider.dart';
+import 'package:papertrade/domain/quantity.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../../fakes.dart';
@@ -50,7 +52,7 @@ void main() {
   // provider between them is real (no latestPriceProvider override).
   test('buy and sell through the real providers without a cycle', () async {
     final channel = _FakeChannel();
-    final service = PriceStreamService('k', connect: (_) => channel);
+    final service = PriceStreamService(testProxy, connect: (_) => channel);
     final container = ProviderContainer.test(
       overrides: [
         portfolioRepositoryProvider.overrideWithValue(
@@ -63,7 +65,7 @@ void main() {
             MockClient(
               (_) async => http.Response('{"c": 189.42, "pc": 188.17}', 200),
             ),
-            'k',
+            testProxy,
           ),
         ),
       ],
@@ -75,18 +77,22 @@ void main() {
     void onError(Object e, StackTrace _) => errors.add(e);
     container
       ..listen(priceSubscriptionsProvider, (_, _) {}, onError: onError)
+      ..listen(orderMatcherProvider, (_, _) {}, onError: onError)
       ..listen(portfolioSummaryProvider, (_, _) {}, onError: onError)
       ..listen(latestPriceProvider('AAPL'), (_, _) {}, onError: onError);
     await container.read(quoteProvider('AAPL').future);
 
     final price = container.read(latestPriceProvider('AAPL'))!;
     final portfolio = container.read(portfolioProvider.notifier);
-    await portfolio.buy('AAPL', 5, priceCents: price);
-    await portfolio.sell('AAPL', 2, priceCents: price);
+    await portfolio.buy('AAPL', 5 * unitsPerShare, priceCents: price);
+    await portfolio.sell('AAPL', 2 * unitsPerShare, priceCents: price);
     await Future<void>.delayed(Duration.zero);
 
     expect(errors, isEmpty);
-    expect(container.read(portfolioProvider).holdings['AAPL']!.quantity, 3);
+    expect(
+      container.read(portfolioProvider).holdings['AAPL']!.quantity,
+      3 * unitsPerShare,
+    );
     expect(
       container.read(portfolioSummaryProvider).marketValueCents,
       3 * price,

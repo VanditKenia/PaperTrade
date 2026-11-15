@@ -29,6 +29,8 @@ class LocalStore {
   static const _watchlistKey = 'watchlist';
   static const _portfolioKey = 'portfolio';
   static const _introSeenKey = 'introSeen';
+  static const _valueHistoryKey = 'valueHistory';
+  static const _alertsKey = 'alerts';
 
   static Future<LocalStore> open() async {
     await Hive.initFlutter();
@@ -63,4 +65,15 @@ class LocalStore {
   /// not at all, so a crash can't leave cash debited without the holding.
   Future<void> writePortfolio(Map<String, Object?> data) =>
       _box.put(_portfolioKey, data);
+
+  /// Portfolio value snapshots for Stats. Kept apart from the portfolio
+  /// value so a trade save doesn't rewrite up to 2,000 snapshots.
+  Object? readValueHistory() => _box.get(_valueHistoryKey);
+
+  Future<void> writeValueHistory(List<Object?> data) =>
+      _box.put(_valueHistoryKey, data);
+
+  Object? readAlerts() => _box.get(_alertsKey);
+
+  Future<void> writeAlerts(List<Object?> data) => _box.put(_alertsKey, data);
 }

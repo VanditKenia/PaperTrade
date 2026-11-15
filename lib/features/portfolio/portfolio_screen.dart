@@ -5,9 +5,11 @@ import '../../app_shell.dart';
 import '../../core/animated_number.dart';
 import '../../core/money.dart';
 import '../../core/theme.dart';
+import '../stats/stats_screen.dart';
 import '../watchlist/widgets/offline_banner.dart';
 import 'portfolio_provider.dart';
 import 'widgets/holding_tile.dart';
+import 'widgets/open_orders_section.dart';
 
 class PortfolioScreen extends ConsumerWidget {
   const PortfolioScreen({super.key});
@@ -19,7 +21,18 @@ class PortfolioScreen extends ConsumerWidget {
     );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Portfolio')),
+      appBar: AppBar(
+        title: const Text('Portfolio'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.insights),
+            tooltip: 'Stats',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const StatsScreen()),
+            ),
+          ),
+        ],
+      ),
       body: Column(
         children: [
           const OfflineBanner(),
@@ -28,6 +41,7 @@ class PortfolioScreen extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(vertical: 8),
               children: [
                 const _SummaryCard(),
+                const OpenOrdersSection(),
                 if (holdings.isEmpty)
                   const _EmptyState()
                 else
@@ -91,6 +105,10 @@ class _SummaryCard extends ConsumerWidget {
               '(${formatPercent(s.totalReturnPercent)}) total return',
               style: text.bodyLarge?.copyWith(color: returnColor),
               alignment: Alignment.centerLeft,
+            ),
+            Text(
+              'Starting balance ${formatCents(s.startingCashCents)}',
+              style: text.labelMedium?.merge(label).merge(tabularFigures),
             ),
             const SizedBox(height: 16),
             Row(

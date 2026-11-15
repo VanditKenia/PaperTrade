@@ -7,6 +7,7 @@ import 'package:papertrade/domain/models/trade.dart';
 import 'package:papertrade/domain/portfolio_engine.dart';
 import 'package:papertrade/features/history/history_provider.dart';
 import 'package:papertrade/features/history/history_screen.dart';
+import 'package:papertrade/domain/quantity.dart';
 
 import '../../fakes.dart';
 
@@ -14,7 +15,7 @@ Trade trade(String id, DateTime at) => Trade(
   id: id,
   symbol: 'AAPL',
   side: TradeSide.buy,
-  quantity: 1,
+  quantity: 1 * unitsPerShare,
   priceCents: 100,
   executedAt: at,
 );
@@ -54,10 +55,15 @@ void main() {
     var s = PortfolioEngine.buy(
       PortfolioState.initial(),
       symbol: 'AAPL',
-      quantity: 5,
+      quantity: 5 * unitsPerShare,
       priceCents: 18500,
     );
-    s = PortfolioEngine.sell(s, symbol: 'AAPL', quantity: 2, priceCents: 19000);
+    s = PortfolioEngine.sell(
+      s,
+      symbol: 'AAPL',
+      quantity: 2 * unitsPerShare,
+      priceCents: 19000,
+    );
     await tester.pumpWidget(app(s));
 
     expect(find.text('BUY'), findsOneWidget);
@@ -65,5 +71,34 @@ void main() {
     expect(find.text(r'5 AAPL @ $185.00'), findsOneWidget);
     expect(find.text(r'2 AAPL @ $190.00'), findsOneWidget);
     expect(find.text(r'+$10.00'), findsOneWidget); // (190 − 185) × 2
+    expect(find.textContaining('· Market'), findsNWidgets(2));
+  });
+
+  testWidgets('marks how each trade was filled', (tester) async {
+    var s = PortfolioEngine.buy(
+      PortfolioState.initial(),
+      symbol: 'AAPL',
+      quantity: 5 * unitsPerShare,
+      priceCents: 18500,
+    );
+    for (final type in [OrderType.limit, OrderType.stopLoss]) {
+      s = PortfolioEngine.placeOrder(
+        s,
+        symbol: 'AAPL',
+        side: TradeSide.sell,
+        type: type,
+        quantity: unitsPerShare,
+        triggerPriceCents: 18000,
+      );
+      s = PortfolioEngine.fillOrder(
+        s,
+        orderId: s.orders.single.id,
+        priceCents: 18000,
+      );
+    }
+    await tester.pumpWidget(app(s));
+    expect(find.textContaining('· Market'), findsOneWidget);
+    expect(find.textContaining('· Limit'), findsOneWidget);
+    expect(find.textContaining('· Stop-loss'), findsOneWidget);
   });
 }
