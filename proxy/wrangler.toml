@@ -1,0 +1,22 @@
+# Cloudflare Worker that holds the market-data API keys (SECURITY.md §2).
+# Secrets are NOT in this file. Set them once with:
+#   npx wrangler secret put FINNHUB_API_KEY
+#   npx wrangler secret put TWELVE_DATA_API_KEY
+name = "papertrade-proxy"
+main = "src/index.ts"
+compatibility_date = "2026-11-01"
+
+[vars]
+# Browser origins allowed besides http://localhost / 127.0.0.1 (any port).
+# Comma-separated, exact match, e.g. "https://yourname.github.io".
+ALLOWED_ORIGINS = ""
+
+# One Durable Object holds the single upstream Finnhub WebSocket.
+[[durable_objects.bindings]]
+name = "RELAY"
+class_name = "Relay"
+
+# Free plan: Durable Objects must use the SQLite storage backend.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Relay"]
